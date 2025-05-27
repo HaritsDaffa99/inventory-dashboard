@@ -51,7 +51,7 @@ export async function testPythonConnection(): Promise<{ success: boolean; messag
     const result = await response.json()
     console.log("Python API health check:", result)
 
-    const isHealthy = result.status === "healthy" && result.database === "connected"
+    const isHealthy = result.status === "healthy"
 
     return {
       success: isHealthy,

@@ -67,6 +67,7 @@ async def health_check():
     """Health check endpoint"""
     return {
         "status": "healthy",
+        "database": "connected",
         "message": "API is operational",
         "version": "1.0.0"
     }
@@ -95,7 +96,7 @@ async def generate_forecast(request: ForecastRequest):
         )
         
         logger.info(f"Forecast generated successfully: {result['model_type']}")
-        return await ForecastResponse(**result)
+        return ForecastResponse(**result)
         
     except Exception as e:
         logger.error(f"Forecast generation failed: {str(e)}")

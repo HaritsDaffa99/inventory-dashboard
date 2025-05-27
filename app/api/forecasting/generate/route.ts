@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-const PYTHON_API_URL =  "http://127.0.0.18000"
+const PYTHON_API_URL =  "http://127.0.0.1:8000"
 
 export async function POST(request: NextRequest) {
   try {
