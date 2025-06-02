@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -53,8 +53,8 @@ export function NotificationsHistory() {
     setMounted(true)
   }, [])
 
-  // Function to fetch notifications
-  const fetchNotifications = async (force = false) => {
+  // Function to fetch notifications wrapped in useCallback
+  const fetchNotifications = useCallback(async (force = false) => {
     setIsLoading(true)
     try {
       // Check if we have cached data and it's recent (within the last minute)
@@ -91,7 +91,7 @@ export function NotificationsHistory() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [notificationStore])
 
   // Fetch notifications when component mounts
   useEffect(() => {
@@ -131,7 +131,7 @@ export function NotificationsHistory() {
       window.removeEventListener("notificationRead", handleNotificationRead as EventListener)
       window.removeEventListener("allNotificationsRead", handleAllNotificationsRead)
     }
-  }, [mounted, notificationStore])
+  }, [mounted, notificationStore, fetchNotifications])
 
   // Apply filters and search
   useEffect(() => {

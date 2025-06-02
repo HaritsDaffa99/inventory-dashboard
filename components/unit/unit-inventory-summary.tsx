@@ -38,7 +38,8 @@ export function UnitInventorySummary({ unitId }: UnitInventorySummaryProps) {
         if (response.success && response.data) {
           setInventorySummary(response.data)
         } else {
-          setError(response.error || "Failed to fetch inventory summary")
+          // Type-safe way to access error property
+          setError('error' in response ? response.error : "Failed to fetch inventory summary")
         }
       } catch (error) {
         console.error("Error fetching inventory summary:", error)

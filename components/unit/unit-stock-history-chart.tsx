@@ -12,7 +12,17 @@ interface UnitStockHistoryChartProps {
 interface StockData {
   month: string
   value: number
-  dispensed: number // Added to track dispensed medicine
+  dispensed?: number // Made optional since API doesn't provide this
+}
+
+interface TooltipProps {
+  active?: boolean
+  payload?: Array<{
+    value: number
+    name: string
+    color: string
+  }>
+  label?: string
 }
 
 export function UnitStockHistoryChart({ unitId }: UnitStockHistoryChartProps) {
@@ -34,7 +44,13 @@ export function UnitStockHistoryChart({ unitId }: UnitStockHistoryChartProps) {
       try {
         const response = await getUnitStockHistory(unitId)
         if (response.success && response.data) {
-          setStockData(response.data)
+          // Transform the data to include dispensed field if needed
+          const transformedData = response.data.map((item: { month: string; value: number }) => ({
+            month: item.month,
+            value: item.value,
+            dispensed: 0 // Default value since API doesn't provide this
+          }))
+          setStockData(transformedData)
         } else {
           setError(response.error || "Failed to fetch stock history")
         }
@@ -50,13 +66,13 @@ export function UnitStockHistoryChart({ unitId }: UnitStockHistoryChartProps) {
   }, [unitId, mounted])
 
   // Custom tooltip for the chart
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload, label }: TooltipProps) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-background p-2 border rounded-md shadow-sm">
           <p className="font-medium">{label}</p>
           <p className="text-sm text-green-600">{`Total Stock: ${payload[0].value}`}</p>
-          {payload.length > 1 && (
+          {payload.length > 1 && payload[1] && (
             <p className="text-sm text-blue-600">{`Dispensed: ${payload[1].value}`}</p>
           )}
         </div>
@@ -109,14 +125,17 @@ export function UnitStockHistoryChart({ unitId }: UnitStockHistoryChartProps) {
                   name="Total Stock"
                   strokeWidth={2}
                 />
-                <Line
-                  type="monotone"
-                  dataKey="dispensed"
-                  stroke="#60a5fa"
-                  activeDot={{ r: 6 }}
-                  name="Dispensed"
-                  strokeWidth={2}
-                />
+                {/* Only show dispensed line if data is available */}
+                {stockData.some(item => item.dispensed && item.dispensed > 0) && (
+                  <Line
+                    type="monotone"
+                    dataKey="dispensed"
+                    stroke="#60a5fa"
+                    activeDot={{ r: 6 }}
+                    name="Dispensed"
+                    strokeWidth={2}
+                  />
+                )}
               </LineChart>
             </ResponsiveContainer>
           </div>

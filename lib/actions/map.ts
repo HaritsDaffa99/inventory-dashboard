@@ -1,6 +1,7 @@
 "use server"
 
 import prisma from "@/lib/prisma"
+import { Prisma } from "@prisma/client"
 
 // Get all units with coordinates for the map
 export async function getUnitsForMap() {
@@ -27,15 +28,14 @@ export async function getUnitsForMap() {
   }
 }
 
-
 // Get stock opname data for a specific unit
 export async function getUnitStockOpname(unitId: number, page: number = 1, pageSize: number = 10, search?: string, filter?: string) {
   try {
     // Check if we should fetch all items (special case for alerts tab)
     const fetchAll = pageSize === -1;
     
-    // Build the where clause
-    let whereClause: any = {
+    // Build the where clause using Prisma types
+    let whereClause: Prisma.StokOpnameWhereInput = {
       unitId: unitId,
     };
     
@@ -116,8 +116,8 @@ export async function getUnitStockOpname(unitId: number, page: number = 1, pageS
       }
     }
 
-    // Determine the order by clause based on filter
-    let orderBy: any = {
+    // Determine the order by clause based on filter using Prisma types
+    let orderBy: Prisma.StokOpnameOrderByWithRelationInput = {
       persediaan: {
         namaPersediaan: 'asc',
       },
@@ -195,8 +195,6 @@ export async function getUnitStockOpname(unitId: number, page: number = 1, pageS
     };
   }
 }
-
-
 
 // Get units with critical inventory status
 export async function getUnitsWithCriticalInventory() {

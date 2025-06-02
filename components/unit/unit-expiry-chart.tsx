@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
 import { getMedicinesApproachingExpiry } from "@/lib/actions/unit-stock-history"
 import { Button } from "@/components/ui/button"
-import { ChevronDown, ChevronUp, List, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react"
+import { List, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react"
 
 interface UnitExpiryChartProps {
   unitId: number
@@ -24,6 +24,18 @@ interface ExpiryData {
   nusp: string  
 }
 
+interface TooltipProps {
+  active?: boolean
+  payload?: Array<{
+    payload: {
+      fullName: string
+      nusp: string
+      unit: string
+    }
+    value: number
+  }>
+}
+
 export function UnitExpiryChart({ unitId, selectedMedicines }: UnitExpiryChartProps) {
   const [expiryData, setExpiryData] = useState<ExpiryData[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -31,12 +43,11 @@ export function UnitExpiryChart({ unitId, selectedMedicines }: UnitExpiryChartPr
   const [mounted, setMounted] = useState(false)
 
   // State variables for enhanced functionality
-  const [displayCount, setDisplayCount] = useState(5)
   const [expandedView, setExpandedView] = useState(false)
   
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(10)
+  const [itemsPerPage] = useState(10)
 
   // Fix hydration issues by only rendering after component is mounted
   useEffect(() => {
@@ -141,7 +152,7 @@ export function UnitExpiryChart({ unitId, selectedMedicines }: UnitExpiryChartPr
   const xAxisMaximum = getAxisMaximum(maxQuantity)
 
   // Custom tooltip for the chart
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload }: TooltipProps) => {
     if (active && payload && payload.length) {
       const item = payload[0].payload
       return (

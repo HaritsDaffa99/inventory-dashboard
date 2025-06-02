@@ -92,20 +92,6 @@ interface StockOpnameItem {
   }
 }
 
-interface PaginationInfo {
-  totalItems: number
-  totalPages: number
-  currentPage: number
-  pageSize: number
-}
-
-interface StockOpnameResponse {
-  success: boolean
-  data?: StockOpnameItem[]
-  error?: string
-  pagination?: PaginationInfo
-}
-
 // Custom marker component
 function CustomMarker({
   position,
@@ -166,7 +152,6 @@ interface MapPageProps {
 export default function MapPage({ units }: MapPageProps) {
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null)
   const [stockData, setStockData] = useState<StockOpnameItem[]>([])
-  const [alertsData, setAlertsData] = useState<StockOpnameItem[]>([])
   const [allAlertsData, setAllAlertsData] = useState<StockOpnameItem[]>([]) // Store all alerts for pagination
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [isLoadingAlerts, setIsLoadingAlerts] = useState<boolean>(false)
@@ -187,7 +172,6 @@ export default function MapPage({ units }: MapPageProps) {
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [totalPages, setTotalPages] = useState<number>(1)
   const [totalItems, setTotalItems] = useState<number>(0)
-  const [pageSize, setPageSize] = useState<number>(10)
   
   // NEW: Pagination state for alerts
   const [alertsCurrentPage, setAlertsCurrentPage] = useState<number>(1)
@@ -309,7 +293,6 @@ export default function MapPage({ units }: MapPageProps) {
         if (response.pagination) {
           setTotalPages(response.pagination.totalPages)
           setTotalItems(response.pagination.totalItems)
-          setPageSize(response.pagination.pageSize)
         }
       } else {
         console.error("Failed to fetch stock data:", response.error)
@@ -406,7 +389,6 @@ export default function MapPage({ units }: MapPageProps) {
         if (response.pagination) {
           setTotalPages(response.pagination.totalPages)
           setTotalItems(response.pagination.totalItems)
-          setPageSize(response.pagination.pageSize)
         }
       } else {
         console.error("Failed to fetch stock data:", response.error)

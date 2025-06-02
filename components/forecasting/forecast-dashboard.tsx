@@ -6,51 +6,32 @@ import { ForecastChart } from "./forecast-chart"
 import { ForecastMetrics } from "./forecast-metrics"
 import { ForecastRecommendations } from "./forecast-recommendations"
 import type { ForecastResult } from "@/lib/forecasting/types"
-import { generateForecast } from "@/lib/actions/forecasting"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, CheckCircle, Info } from "lucide-react"
 
 export function ForecastDashboard() {
   const [forecastResult, setForecastResult] = useState<ForecastResult | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [debugInfo, setDebugInfo] = useState<string | null>(null)
 
-  const handleGenerateForecast = async (unitId: number, medicineId: number, periods: number) => {
-    setIsLoading(true)
-    setError(null)
-    setDebugInfo(null)
-
-    try {
-      console.log(`Starting forecast generation: Unit ${unitId}, Medicine ${medicineId}, Periods ${periods}`)
-      setDebugInfo(`Generating forecast for Unit ${unitId}, Medicine ${medicineId}...`)
-
-      const result = await generateForecast(unitId, medicineId, periods)
-      console.log("Forecast result:", result)
-
-      if (result.success) {
-        setForecastResult(result)
-        setDebugInfo(`Forecast generated successfully using ${result.model_type}`)
-      } else {
-        setError(result.error || "Failed to generate forecast")
-        setForecastResult(null)
-        setDebugInfo(`Forecast failed: ${result.error}`)
-      }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred"
-      console.error("Forecast error:", err)
-      setError(errorMessage)
+  const handleForecastGenerated = (result: ForecastResult) => {
+    console.log("Forecast result received:", result)
+    
+    if (result.success) {
+      setForecastResult(result)
+      setError(null)
+      setDebugInfo(`Forecast generated successfully using ${result.model_type}`)
+    } else {
+      setError(result.error || "Failed to generate forecast")
       setForecastResult(null)
-      setDebugInfo(`Error: ${errorMessage}`)
-    } finally {
-      setIsLoading(false)
+      setDebugInfo(`Forecast failed: ${result.error}`)
     }
   }
 
   return (
     <div className="space-y-6">
       {/* Filters */}
-      <ForecastFilters onGenerateForecast={handleGenerateForecast} isLoading={isLoading} />
+      <ForecastFilters onForecastGenerated={handleForecastGenerated} />
 
       {/* Debug Info */}
       {debugInfo && (

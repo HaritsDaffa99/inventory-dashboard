@@ -2,6 +2,29 @@
 
 import prisma from "@/lib/prisma"
 
+// Type definitions for better type safety
+interface MonthData {
+  date: Date;
+  name: string;
+  totalDispensed: number;
+}
+
+interface StockHistoryEntry {
+  month: string;
+  value: number;
+}
+
+interface StokOpnameWhereClause {
+  unitId: number;
+  persediaanId?: {
+    in: number[];
+  };
+  tanggalExpired?: {
+    lte?: Date;
+    gt?: Date;
+  };
+}
+
 // Update the getUnitStockHistory function to ensure months are properly ordered with current month at the end
 export async function getUnitStockHistory(unitId: number) {
   try {
@@ -32,7 +55,7 @@ export async function getUnitStockHistory(unitId: number) {
     })
 
     // Create an array of the last 7 months (current month + 6 previous months)
-    const months = []
+    const months: MonthData[] = []
     for (let i = 6; i >= 0; i--) {
       const date = new Date()
       date.setMonth(currentDate.getMonth() - i)
@@ -79,7 +102,7 @@ export async function getUnitStockHistory(unitId: number) {
     // Calculate the stock level by starting with the current stock
     // and adding back the dispensed items as we go back in time
     let runningStock = currentStockValue
-    const stockData = []
+    const stockData: StockHistoryEntry[] = []
 
     // Process months in reverse order (from current month back to 6 months ago)
     // This ensures we're calculating historical stock levels correctly
@@ -120,7 +143,7 @@ export async function getMedicinesApproachingExpiry(unitId: number, selectedMedi
     oneYearFromNow.setFullYear(currentDate.getFullYear() + 1)
 
     // Build the query
-    const whereClause: any = {
+    const whereClause: StokOpnameWhereClause = {
       unitId: unitId,
       tanggalExpired: {
         lte: oneYearFromNow, // Expiry date is less than or equal to 1 year from now
@@ -242,7 +265,7 @@ export async function getMedicinesApproachingExpiry(unitId: number, selectedMedi
 export async function getTopMedicinesInUnit(unitId: number, selectedMedicines?: number[]) {
   try {
     // Build the query
-    const whereClause: any = {
+    const whereClause: StokOpnameWhereClause = {
       unitId: unitId,
     }
 
@@ -303,7 +326,7 @@ export async function getTopMedicinesInUnit(unitId: number, selectedMedicines?: 
 export async function getLowStockWarnings(unitId: number, selectedMedicines?: number[]) {
   try {
     // Build the query
-    const whereClause: any = {
+    const whereClause: StokOpnameWhereClause = {
       unitId: unitId,
     }
 

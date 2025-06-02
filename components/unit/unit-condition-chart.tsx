@@ -57,7 +57,13 @@ export function UnitConditionChart({ unitId, selectedMedicines }: UnitConditionC
     fetchData()
   }, [unitId, selectedMedicines, mounted])
 
-  const CustomTooltip = ({ active, payload }: any) => {
+  const CustomTooltip = ({ 
+    active, 
+    payload 
+  }: { 
+    active?: boolean; 
+    payload?: Array<{ payload: ChartData }> 
+  }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload
       return (

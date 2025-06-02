@@ -11,8 +11,15 @@ interface UnitMetricsCardsProps {
   selectedMedicines?: number[]
 }
 
-export function UnitMetricsCards({ unitId, selectedMedicines = [] }: UnitMetricsCardsProps) {
-  const [metrics, setMetrics] = useState<any>(null)
+interface MetricsData {
+  totalInventory: { value: number; change: number }
+  totalReceipts: { value: number; change: number }
+  totalDispensed: { value: number; change: number }
+  expiredMedicines: { value: number; change: number }
+}
+
+export function UnitMetricsCards({ unitId }: UnitMetricsCardsProps) {
+  const [metrics, setMetrics] = useState<MetricsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
@@ -34,7 +41,7 @@ export function UnitMetricsCards({ unitId, selectedMedicines = [] }: UnitMetrics
         console.log("Metrics response:", response)
 
         if (response && response.success && response.data) {
-          setMetrics(response.data)
+          setMetrics(response.data as MetricsData)
           setError(null)
         } else {
           setError(response?.error || "Failed to fetch metrics")
@@ -93,12 +100,12 @@ export function UnitMetricsCards({ unitId, selectedMedicines = [] }: UnitMetrics
             <>
               <div className="text-2xl font-bold">{formatNumber(metrics?.totalInventory?.value || 0)}</div>
               <p className="text-xs text-muted-foreground">
-                {metrics?.totalInventory?.change > 0 ? (
+                {(metrics?.totalInventory?.change || 0) > 0 ? (
                   <span className="flex items-center text-green-600">
                     <ArrowUp className="mr-1 h-3 w-3" />
-                    {metrics?.totalInventory?.change?.toFixed(1) || "0.0"}% from last month
+                    {(metrics?.totalInventory?.change || 0).toFixed(1)}% from last month
                   </span>
-                ) : metrics?.totalInventory?.change < 0 ? (
+                ) : (metrics?.totalInventory?.change || 0) < 0 ? (
                   <span className="flex items-center text-red-600">
                     <ArrowDown className="mr-1 h-3 w-3" />
                     {Math.abs(metrics?.totalInventory?.change || 0).toFixed(1)}% from last month
@@ -130,12 +137,12 @@ export function UnitMetricsCards({ unitId, selectedMedicines = [] }: UnitMetrics
             <>
               <div className="text-2xl font-bold">{formatNumber(metrics?.totalReceipts?.value || 0)}</div>
               <p className="text-xs text-muted-foreground">
-                {metrics?.totalReceipts?.change > 0 ? (
+                {(metrics?.totalReceipts?.change || 0) > 0 ? (
                   <span className="flex items-center text-green-600">
                     <ArrowUp className="mr-1 h-3 w-3" />
-                    {metrics?.totalReceipts?.change?.toFixed(1) || "0.0"}% from last month
+                    {(metrics?.totalReceipts?.change || 0).toFixed(1)}% from last month
                   </span>
-                ) : metrics?.totalReceipts?.change < 0 ? (
+                ) : (metrics?.totalReceipts?.change || 0) < 0 ? (
                   <span className="flex items-center text-red-600">
                     <ArrowDown className="mr-1 h-3 w-3" />
                     {Math.abs(metrics?.totalReceipts?.change || 0).toFixed(1)}% from last month
@@ -167,12 +174,12 @@ export function UnitMetricsCards({ unitId, selectedMedicines = [] }: UnitMetrics
             <>
               <div className="text-2xl font-bold">{formatNumber(metrics?.totalDispensed?.value || 0)}</div>
               <p className="text-xs text-muted-foreground">
-                {metrics?.totalDispensed?.change > 0 ? (
+                {(metrics?.totalDispensed?.change || 0) > 0 ? (
                   <span className="flex items-center text-green-600">
                     <ArrowUp className="mr-1 h-3 w-3" />
-                    {metrics?.totalDispensed?.change?.toFixed(1) || "0.0"}% from last month
+                    {(metrics?.totalDispensed?.change || 0).toFixed(1)}% from last month
                   </span>
-                ) : metrics?.totalDispensed?.change < 0 ? (
+                ) : (metrics?.totalDispensed?.change || 0) < 0 ? (
                   <span className="flex items-center text-red-600">
                     <ArrowDown className="mr-1 h-3 w-3" />
                     {Math.abs(metrics?.totalDispensed?.change || 0).toFixed(1)}% from last month
@@ -204,12 +211,12 @@ export function UnitMetricsCards({ unitId, selectedMedicines = [] }: UnitMetrics
             <>
               <div className="text-2xl font-bold">{formatNumber(metrics?.expiredMedicines?.value || 0)}</div>
               <p className="text-xs text-muted-foreground">
-                {metrics?.expiredMedicines?.change > 0 ? (
+                {(metrics?.expiredMedicines?.change || 0) > 0 ? (
                   <span className="flex items-center text-amber-600">
                     <ArrowUp className="mr-1 h-3 w-3" />
-                    {metrics?.expiredMedicines?.change?.toFixed(1) || "0.0"}% from last month
+                    {(metrics?.expiredMedicines?.change || 0).toFixed(1)}% from last month
                   </span>
-                ) : metrics?.expiredMedicines?.change < 0 ? (
+                ) : (metrics?.expiredMedicines?.change || 0) < 0 ? (
                   <span className="flex items-center text-green-600">
                     <ArrowDown className="mr-1 h-3 w-3" />
                     {Math.abs(metrics?.expiredMedicines?.change || 0).toFixed(1)}% from last month

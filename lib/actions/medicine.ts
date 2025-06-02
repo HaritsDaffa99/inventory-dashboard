@@ -1,7 +1,51 @@
 "use server"
 
 import prisma from "@/lib/prisma"
+import { Prisma } from "@prisma/client"
 
+// Add this new function to get a single medicine by ID
+export async function getMedicine(medicineId: string) {
+  try {
+    const medicine = await prisma.persediaan.findUnique({
+      where: {
+        id: parseInt(medicineId), // Convert string to number since your ID is number
+      },
+      select: {
+        id: true,
+        namaPersediaan: true,
+        kodePersediaan: true,
+        tipe: true,
+      },
+    })
+
+    if (!medicine) {
+      return {
+        success: false,
+        error: "Medicine not found",
+        data: null,
+      }
+    }
+
+    // Transform to match the expected interface in stock-chart.tsx
+    const transformedMedicine = {
+      id: medicine.id.toString(), // Convert back to string for compatibility
+      medicine_name: medicine.namaPersediaan,
+      transaction_status: "Current", // Default status since this isn't in your schema
+    }
+
+    return {
+      success: true,
+      data: transformedMedicine,
+    }
+  } catch (error) {
+    console.error("Error fetching medicine:", error)
+    return {
+      success: false,
+      error: `Failed to fetch medicine: ${error instanceof Error ? error.message : "Unknown error"}`,
+      data: null,
+    }
+  }
+}
 
 // Add this new function to get medicines for a specific unit
 export async function getUnitMedicines(unitId: number) {
@@ -56,7 +100,7 @@ export async function getStockOpnameByUnit(unitId: number) {
           select: {
             namaPersediaan: true,
             kodePersediaan: true,
-            jenisPersediaan: true,
+            tipe: true, // Changed from jenisPersediaan to tipe
           },
         },
         satuan: {
@@ -89,49 +133,53 @@ export async function getItemConditionDistribution(unitId?: number, persediaanId
     // Get all kondisi (conditions) for reference
     const kondisiList = await prisma.kondisi.findMany()
 
-    // Base query to get condition distribution from RincianPenerimaan
-    const query: any = {
-      where: {
-        temp: false,
-      },
-      include: {
-        kondisi: true,
-      },
+    // Build the where clause first
+    const whereClause: Prisma.RincianPenerimaanWhereInput = {
+      temp: false,
     }
 
     // If unitId is provided, filter by that unit
     if (unitId) {
-      query.where.unitId = unitId
+      whereClause.unitId = unitId
     }
 
     // If persediaanIds is provided and is a non-empty array, filter by those IDs
     if (persediaanIds && Array.isArray(persediaanIds) && persediaanIds.length > 0) {
-      query.where.persediaanId = {
+      whereClause.persediaanId = {
         in: persediaanIds,
       }
     }
 
     // Get all rincianPenerimaan records with their conditions
-    const rincianPenerimaan = await prisma.rincianPenerimaan.findMany(query)
+    const rincianPenerimaan = await prisma.rincianPenerimaan.findMany({
+      where: whereClause,
+      include: {
+        kondisi: {
+          select: {
+            kondisi: true,
+          },
+        },
+      },
+    })
 
     // Group by kondisi and count
     const conditionCounts: Record<string, number> = {}
 
     // Initialize with all possible conditions
-    kondisiList.forEach((kondisi) => {
-      conditionCounts[kondisi.kondisi] = 0
+    kondisiList.forEach((kondisiItem) => {
+      conditionCounts[kondisiItem.kondisi] = 0
     })
 
-    // Count items by condition
+    // Count items by condition - now kondisi should be available
     rincianPenerimaan.forEach((item) => {
-      if (item.kondisi && item.kondisi.kondisi) {
+      if (item.kondisi?.kondisi) {
         const kondisiName = item.kondisi.kondisi
-        conditionCounts[kondisiName] = (conditionCounts[kondisiName] || 0) + item.banyak
+        conditionCounts[kondisiName] = (conditionCounts[kondisiName] || 0) + (item.banyak || 0)
       }
     })
 
     // Build the StokOpname query
-    const stockOpnameQuery: any = {}
+    const stockOpnameQuery: Prisma.StokOpnameWhereInput = {}
 
     // Add unitId filter if provided
     if (unitId) {
@@ -436,7 +484,7 @@ export async function getTopReceivedItems(selectedMedicines?: number[]) {
     const firstDayNextMonth = new Date(Date.UTC(currentYear, currentMonth + 1, 1))
 
     // Create the base query with date filter
-    const whereClause: any = {
+    const whereClause: Prisma.RincianPenerimaanWhereInput = {
       temp: false,
       penerimaan: {
         tanggalPenerimaan: {
@@ -517,8 +565,7 @@ export async function getTopDispensedItems(selectedMedicines?: number[]) {
     const firstDayNextMonth = new Date(Date.UTC(currentYear, currentMonth + 1, 1))
 
     // Create the base query with date filter
-    const whereClause: any = {
-   
+    const whereClause: Prisma.RincianPengeluaranWhereInput = {
       pengeluaran: {
         tanggalSah: {
           gte: firstDayCurrentMonth,
@@ -589,7 +636,7 @@ export async function getTopDispensedItems(selectedMedicines?: number[]) {
 export async function getTopItemsByQuantity(selectedMedicines?: number[]) {
   try {
     // Create the base query
-    const whereClause: any = {}
+    const whereClause: Prisma.StokOpnameWhereInput = {}
 
     // If selectedMedicines is provided, filter by those IDs
     if (selectedMedicines && selectedMedicines.length > 0) {

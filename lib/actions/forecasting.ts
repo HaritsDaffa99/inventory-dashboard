@@ -55,7 +55,7 @@ export async function testPythonConnection(): Promise<{ success: boolean; messag
 
     return {
       success: isHealthy,
-      message: `API: ${result.status}, Database: ${result.database}`,
+      message: `API: ${result.status}, Model: ${result.model || "Unknown"}, Modes: ${result.modes?.join(", ") || "Unknown"}`,
     }
   } catch (error) {
     console.error("Python API connection test failed:", error)
@@ -108,34 +108,41 @@ export async function getUnitMedicines(
   }
 }
 
-export async function generateForecast(unitId: number, medicineId: number, periods = 6): Promise<ForecastResult> {
+export async function generateForecast(
+  unitId: number,
+  medicineId: number,
+  periods = 6,
+  includeHolidays = false,
+  modelMode = "fast",
+): Promise<ForecastResult> {
   try {
-    console.log(`Generating REAL ARIMA/SARIMA forecast for Unit ${unitId}, Medicine ${medicineId}, Periods ${periods}`)
+    console.log(`Generating Prophet forecast for Unit ${unitId}, Medicine ${medicineId}`)
+    console.log(`Mode: ${modelMode.toUpperCase()}, Periods: ${periods}`)
 
-    // First, test if Python API and database are available
+    // First, test if Python API is available
     const connectionTest = await testPythonConnection()
     if (!connectionTest.success) {
-      console.error("Python API or database connection failed:", connectionTest.message)
+      console.error("Python API connection failed:", connectionTest.message)
       return {
         success: false,
         unit_id: unitId,
         medicine_id: medicineId,
         model_type: "",
-        model_parameters: { p: 0, d: 0, q: 0, seasonal_P: 0, seasonal_D: 0, seasonal_Q: 0, seasonal_m: 0 },
+        model_parameters: {},
         historical_data: [],
         forecast_data: [],
         summary: { total_forecast: 0, avg_monthly: 0, historical_avg: 0, data_points: 0, forecast_period: 0 },
         recommendations: { safety_stock: 0, reorder_point: 0, lead_time_months: 0, service_level: "" },
-        error: `Python API or database not available: ${connectionTest.message}. Real ARIMA/SARIMA forecasting requires both Python service and database connection.`,
+        error: `Python API not available: ${connectionTest.message}. Prophet forecasting requires the Python service to be running.`,
       }
     }
 
-    console.log("Python API and database are available, proceeding with ARIMA/SARIMA forecast...")
+    console.log("Python API is available, proceeding with Prophet forecast...")
 
     const response = await fetch(`${process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/forecasting/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ unitId, medicineId, periods }),
+      body: JSON.stringify({ unitId, medicineId, periods, includeHolidays, modelMode }),
     })
 
     if (!response.ok) {
@@ -151,7 +158,7 @@ export async function generateForecast(unitId: number, medicineId: number, perio
         unit_id: unitId,
         medicine_id: medicineId,
         model_type: "",
-        model_parameters: { p: 0, d: 0, q: 0, seasonal_P: 0, seasonal_D: 0, seasonal_Q: 0, seasonal_m: 0 },
+        model_parameters: {},
         historical_data: [],
         forecast_data: [],
         summary: { total_forecast: 0, avg_monthly: 0, historical_avg: 0, data_points: 0, forecast_period: 0 },
@@ -160,19 +167,18 @@ export async function generateForecast(unitId: number, medicineId: number, perio
       }
     }
 
-    console.log("✅ Real ARIMA/SARIMA forecast generated successfully!")
-    console.log("Model type:", result.model_type)
-    console.log("Parameters determined by statistical tests:", result.model_parameters)
+    console.log(`✅ Prophet forecast generated successfully using ${modelMode} mode!`)
+    console.log("Model parameters:", result.model_parameters)
 
     return result
   } catch (error) {
-    console.error("Real ARIMA/SARIMA forecast failed:", error)
+    console.error("Prophet forecast failed:", error)
     return {
       success: false,
       unit_id: unitId,
       medicine_id: medicineId,
       model_type: "",
-      model_parameters: { p: 0, d: 0, q: 0, seasonal_P: 0, seasonal_D: 0, seasonal_Q: 0, seasonal_m: 0 },
+      model_parameters: {},
       historical_data: [],
       forecast_data: [],
       summary: { total_forecast: 0, avg_monthly: 0, historical_avg: 0, data_points: 0, forecast_period: 0 },

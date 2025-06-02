@@ -1,9 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getUnitMedicines } from "@/lib/actions/forecasting"
 
-export async function GET(request: NextRequest, { params }: { params: { unitId: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ unitId: string }> }) {
   try {
-    const unitId = Number.parseInt(params.unitId)
+    const { unitId: unitIdParam } = await params
+    const unitId = Number.parseInt(unitIdParam)
 
     if (!unitId) {
       return NextResponse.json({ success: false, error: "Invalid unit ID" }, { status: 400 })

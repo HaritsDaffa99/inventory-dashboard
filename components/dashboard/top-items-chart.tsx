@@ -69,7 +69,16 @@ export function TopItemsChart({ selectedMedicines }: TopItemsChartProps) {
   }, [selectedMedicines, mounted])
 
   // Custom tooltip for the chart
-  const CustomTooltip = ({ active, payload }: any) => {
+  const CustomTooltip = ({ 
+    active, 
+    payload 
+  }: {
+    active?: boolean;
+    payload?: Array<{
+      value: number;
+      payload: ChartData;
+    }>;
+  }) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-background p-2 border rounded-md shadow-sm">

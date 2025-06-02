@@ -23,7 +23,8 @@ interface LowStockData {
   minimumThreshold: number
   status: string
   expiryDate?: Date
-  nusp: string
+  nusp?: string
+  daysRemaining?: number | null
 }
 
 export function UnitLowStockTable({ unitId, selectedMedicines, unitName }: UnitLowStockTableProps) {
@@ -34,7 +35,7 @@ export function UnitLowStockTable({ unitId, selectedMedicines, unitName }: UnitL
   
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage, setItemsPerPage] = useState(5)
+  const itemsPerPage = 5
 
   // Fix hydration issues by only rendering after component is mounted
   useEffect(() => {

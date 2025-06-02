@@ -1,26 +1,26 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Card, CardContent } from "@/components/ui/card"
-import { ArrowUp, ArrowDown, Minus } from "lucide-react"
-import { Package, PackageCheck, BarChart3, TrendingUp } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
+import { TrendingUp, TrendingDown, Package, ShoppingCart, AlertTriangle, BarChart3 } from "lucide-react"
 
+// Updated interface to match the one in overview-page.tsx
 interface DashboardMetrics {
   totalReceipts: {
     value: number
-    change: number
+    change: number | null  // Allow null
   }
   totalDispensed: {
     value: number
-    change: number
+    change: number | null  // Allow null
   }
   availableStock: {
     value: number
-    change: number | null
+    change: number | null  // Allow null
   }
   stockToConsumptionRatio: {
     value: number
-    change: number
+    change: number | null  // Allow null
   }
 }
 
@@ -30,34 +30,18 @@ interface OverviewCardsProps {
 }
 
 export function OverviewCards({ metrics, isLoading }: OverviewCardsProps) {
-  const [mounted, setMounted] = useState(false)
-
-  // Fix hydration issues by only rendering after component is mounted
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  // Format number with commas
-  const formatNumber = (num: number): string => {
-    return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-  }
-
-  // Don't render anything on the server, only on the client
-  if (!mounted) {
-    return null
-  }
-
   if (isLoading) {
     return (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {[1, 2, 3, 4].map((i) => (
+        {Array.from({ length: 4 }).map((_, i) => (
           <Card key={i}>
-            <CardContent className="p-6">
-              <div className="flex flex-col gap-3">
-                <div className="h-4 w-24 animate-pulse rounded bg-muted"></div>
-                <div className="h-8 w-16 animate-pulse rounded bg-muted"></div>
-                <div className="h-4 w-32 animate-pulse rounded bg-muted"></div>
-              </div>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <Skeleton className="h-4 w-[100px]" />
+              <Skeleton className="h-4 w-4" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-8 w-[120px] mb-2" />
+              <Skeleton className="h-4 w-[80px]" />
             </CardContent>
           </Card>
         ))}
@@ -65,115 +49,94 @@ export function OverviewCards({ metrics, isLoading }: OverviewCardsProps) {
     )
   }
 
+  if (!metrics) {
+    return (
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Card key={i}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">No Data</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">--</div>
+              <p className="text-xs text-muted-foreground">Data unavailable</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    )
+  }
+
+  const formatChange = (change: number | null) => {
+    if (change === null) return "No change data"
+    const isPositive = change >= 0
+    const Icon = isPositive ? TrendingUp : TrendingDown
+    return (
+      <div className={`flex items-center text-xs ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+        <Icon className="h-3 w-3 mr-1" />
+        {isPositive ? '+' : ''}{change.toFixed(1)}%
+      </div>
+    )
+  }
+
+  const formatNumber = (num: number) => {
+    return new Intl.NumberFormat('id-ID').format(num)
+  }
+
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      {/* Total Receipts Card */}
       <Card>
-        <CardContent className="p-6">
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-muted-foreground">Total Receipts</span>
-              <Package className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <div className="text-2xl font-bold">{metrics ? formatNumber(metrics.totalReceipts.value) : 0}</div>
-            <div className="flex items-center text-sm">
-              {metrics && metrics.totalReceipts.change > 0 ? (
-                <>
-                  <ArrowUp className="mr-1 h-4 w-4 text-green-500" />
-                  <span className="text-green-500">+{metrics.totalReceipts.change.toFixed(1)}%</span>
-                </>
-              ) : metrics && metrics.totalReceipts.change < 0 ? (
-                <>
-                  <ArrowDown className="mr-1 h-4 w-4 text-red-500" />
-                  <span className="text-red-500">{metrics.totalReceipts.change.toFixed(1)}%</span>
-                </>
-              ) : (
-                <>
-                  <Minus className="mr-1 h-4 w-4 text-gray-500" />
-                  <span className="text-gray-500">0.0%</span>
-                </>
-              )}
-              <span className="ml-1 text-muted-foreground">from last month</span>
-            </div>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Total Receipts</CardTitle>
+          <Package className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{formatNumber(metrics.totalReceipts.value)}</div>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">Items received</p>
+            {formatChange(metrics.totalReceipts.change)}
           </div>
         </CardContent>
       </Card>
 
-      {/* Total Dispensed Card */}
       <Card>
-        <CardContent className="p-6">
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-muted-foreground">Total Dispensed</span>
-              <PackageCheck className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <div className="text-2xl font-bold">{metrics ? formatNumber(metrics.totalDispensed.value) : 0}</div>
-            <div className="flex items-center text-sm">
-              {metrics && metrics.totalDispensed.change > 0 ? (
-                <>
-                  <ArrowUp className="mr-1 h-4 w-4 text-green-500" />
-                  <span className="text-green-500">+{metrics.totalDispensed.change.toFixed(1)}%</span>
-                </>
-              ) : metrics && metrics.totalDispensed.change < 0 ? (
-                <>
-                  <ArrowDown className="mr-1 h-4 w-4 text-red-500" />
-                  <span className="text-red-500">{metrics.totalDispensed.change.toFixed(1)}%</span>
-                </>
-              ) : (
-                <>
-                  <Minus className="mr-1 h-4 w-4 text-gray-500" />
-                  <span className="text-gray-500">0.0%</span>
-                </>
-              )}
-              <span className="ml-1 text-muted-foreground">from last month</span>
-            </div>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Total Dispensed</CardTitle>
+          <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{formatNumber(metrics.totalDispensed.value)}</div>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">Items dispensed</p>
+            {formatChange(metrics.totalDispensed.change)}
           </div>
         </CardContent>
       </Card>
 
-      {/* Available Stock Card */}
       <Card>
-        <CardContent className="p-6">
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-muted-foreground">Available Stock</span>
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <div className="text-2xl font-bold">{metrics ? formatNumber(metrics.availableStock.value) : 0}</div>
-            {/* Removed percentage comparison for Available Stock as requested */}
-            <div className="text-sm text-muted-foreground">Current inventory</div>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Available Stock</CardTitle>
+          <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{formatNumber(metrics.availableStock.value)}</div>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">Items in stock</p>
+            {formatChange(metrics.availableStock.change)}
           </div>
         </CardContent>
       </Card>
 
-      {/* Stock-to-Consumption Ratio Card */}
       <Card>
-        <CardContent className="p-6">
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-muted-foreground">Stock-to-Consumption</span>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </div>
-            <div className="text-2xl font-bold">{metrics ? metrics.stockToConsumptionRatio.value.toFixed(1) : 0}×</div>
-            <div className="flex items-center text-sm">
-              {metrics && metrics.stockToConsumptionRatio.change > 0 ? (
-                <>
-                  <ArrowUp className="mr-1 h-4 w-4 text-green-500" />
-                  <span className="text-green-500">+{metrics.stockToConsumptionRatio.change.toFixed(1)}%</span>
-                </>
-              ) : metrics && metrics.stockToConsumptionRatio.change < 0 ? (
-                <>
-                  <ArrowDown className="mr-1 h-4 w-4 text-red-500" />
-                  <span className="text-red-500">{metrics.stockToConsumptionRatio.change.toFixed(1)}%</span>
-                </>
-              ) : (
-                <>
-                  <Minus className="mr-1 h-4 w-4 text-gray-500" />
-                  <span className="text-gray-500">0.0%</span>
-                </>
-              )}
-              <span className="ml-1 text-muted-foreground">from last month</span>
-            </div>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Stock Ratio</CardTitle>
+          <BarChart3 className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{metrics.stockToConsumptionRatio.value.toFixed(2)}</div>
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">Stock to consumption</p>
+            {formatChange(metrics.stockToConsumptionRatio.change)}
           </div>
         </CardContent>
       </Card>

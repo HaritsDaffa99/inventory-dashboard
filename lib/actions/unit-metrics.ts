@@ -2,13 +2,26 @@
 
 import prisma from "@/lib/prisma";
 
+// Type definitions for better type safety
+interface StokOpnameWhereClause {
+  unitId: number;
+  persediaanId?: {
+    in: number[];
+  };
+  tanggalExpired?: {
+    lt?: Date;
+    gte?: Date;
+    lte?: Date;
+  };
+}
+
 export async function getUnitConditionDistribution(
   unitId: number,
   selectedMedicines?: number[]
 ) {
   try {
     // Build the query
-    const whereClause: any = {
+    const whereClause: StokOpnameWhereClause = {
       unitId: unitId,
     };
 
@@ -24,48 +37,45 @@ export async function getUnitConditionDistribution(
       where: whereClause,
     });
 
-    // Get count of items by condition
-    const goodCondition = await prisma.stokOpname.count({
-      where: {
-        ...whereClause,
-        kondisi: "Baik",
+    // Based on your schema, StokOpname doesn't have a 'kondisi' field
+    // Instead, we'll calculate condition based on the damage fields
+    
+    // Count items by damage level
+    const items = await prisma.stokOpname.findMany({
+      where: whereClause,
+      select: {
+        rusakRingan: true,
+        rusakBerat: true,
+        jumlah: true,
+        tanggalExpired: true,
       },
     });
 
-    const minorDamage = await prisma.stokOpname.count({
-      where: {
-        ...whereClause,
-        kondisi: "Rusak Ringan",
-      },
-    });
-
-    const majorDamage = await prisma.stokOpname.count({
-      where: {
-        ...whereClause,
-        kondisi: "Rusak Berat",
-      },
-    });
-
-    // Get count of expired items
     const currentDate = new Date();
-    const expiredCount = await prisma.stokOpname.count({
-      where: {
-        ...whereClause,
-        tanggalExpired: {
-          lt: currentDate,
-        },
-      },
+    let goodCondition = 0;
+    let minorDamage = 0;
+    let majorDamage = 0;
+    let expiredCount = 0;
+
+    items.forEach(item => {
+      const isExpired = item.tanggalExpired && item.tanggalExpired < currentDate;
+      
+      if (isExpired) {
+        expiredCount++;
+      } else if ((item.rusakBerat || 0) > 0) {
+        majorDamage++;
+      } else if ((item.rusakRingan || 0) > 0) {
+        minorDamage++;
+      } else {
+        goodCondition++;
+      }
     });
 
     // Calculate percentages
-    const goodPercentage =
-      totalCount > 0 ? (goodCondition / totalCount) * 100 : 0;
-    const minorDamagePercentage =
-      totalCount > 0 ? (minorDamage / totalCount) * 100 : 0;
-    const majorDamagePercentage =
-      totalCount > 0 ? (majorDamage / totalCount) * 100 : 0;
-    const expiredPercentage =
-      totalCount > 0 ? (expiredCount / totalCount) * 100 : 0;
+    const goodPercentage = totalCount > 0 ? (goodCondition / totalCount) * 100 : 0;
+    const minorDamagePercentage = totalCount > 0 ? (minorDamage / totalCount) * 100 : 0;
+    const majorDamagePercentage = totalCount > 0 ? (majorDamage / totalCount) * 100 : 0;
+    const expiredPercentage = totalCount > 0 ? (expiredCount / totalCount) * 100 : 0;
 
     return {
       success: true,
@@ -91,7 +101,7 @@ export async function getUnitConditionDistribution(
       error: `Failed to fetch unit condition distribution: ${
         error instanceof Error ? error.message : "Unknown error"
       }`,
-      data: [], // Provide empty data to avoid null
+      data: [],
     };
   }
 }
@@ -102,7 +112,7 @@ export async function getUnitExpiryDistribution(
 ) {
   try {
     // Build the query
-    const whereClause: any = {
+    const whereClause: StokOpnameWhereClause = {
       unitId: unitId,
     };
 
@@ -188,16 +198,11 @@ export async function getUnitExpiryDistribution(
       moreThanTwelveMonths;
 
     // Calculate percentages
-    const lessThanOneMonthPercentage =
-      total > 0 ? (lessThanOneMonth / total) * 100 : 0;
-    const oneToThreeMonthsPercentage =
-      total > 0 ? (oneToThreeMonths / total) * 100 : 0;
-    const threeToSixMonthsPercentage =
-      total > 0 ? (threeToSixMonths / total) * 100 : 0;
-    const sixToTwelveMonthsPercentage =
-      total > 0 ? (sixToTwelveMonths / total) * 100 : 0;
-    const moreThanTwelveMonthsPercentage =
-      total > 0 ? (moreThanTwelveMonths / total) * 100 : 0;
+    const lessThanOneMonthPercentage = total > 0 ? (lessThanOneMonth / total) * 100 : 0;
+    const oneToThreeMonthsPercentage = total > 0 ? (oneToThreeMonths / total) * 100 : 0;
+    const threeToSixMonthsPercentage = total > 0 ? (threeToSixMonths / total) * 100 : 0;
+    const sixToTwelveMonthsPercentage = total > 0 ? (sixToTwelveMonths / total) * 100 : 0;
+    const moreThanTwelveMonthsPercentage = total > 0 ? (moreThanTwelveMonths / total) * 100 : 0;
 
     return {
       success: true,
@@ -236,7 +241,7 @@ export async function getUnitExpiryDistribution(
       error: `Failed to fetch unit expiry distribution: ${
         error instanceof Error ? error.message : "Unknown error"
       }`,
-      data: [], // Provide empty data to avoid null
+      data: [],
     };
   }
 }
@@ -251,7 +256,7 @@ export async function getUnitTopReceivedItems(
 
     // Calculate date 30 days ago
     const thirtyDaysAgo = new Date(currentDate);
-    thirtyDaysAgo.setDate(currentDate.getDate() - 30);S
+    thirtyDaysAgo.setDate(currentDate.getDate() - 30);
 
     // Build the query with join to Penerimaan to get the date
     const topReceivedItems = await prisma.rincianPenerimaan.groupBy({
@@ -388,7 +393,7 @@ export async function getUnitTopDispensedItems(
       error: `Failed to fetch unit top dispensed items: ${
         error instanceof Error ? error.message : "Unknown error"
       }`,
-      data: [], // Provide empty data to avoid null
+      data: [],
     };
   }
 }
@@ -399,7 +404,7 @@ export async function getUnitTopItemsByQuantity(
 ) {
   try {
     // Build the query
-    const whereClause: any = {
+    const whereClause: StokOpnameWhereClause = {
       unitId: unitId,
     };
 
@@ -479,7 +484,7 @@ export async function getUnitTopItemsByQuantity(
       error: `Failed to fetch unit top items by quantity: ${
         error instanceof Error ? error.message : "Unknown error"
       }`,
-      data: [], // Provide empty data to avoid null
+      data: [],
     };
   }
 }
@@ -490,7 +495,7 @@ export async function getUnitLowStockItems(
 ) {
   try {
     // Build the query
-    const whereClause: any = {
+    const whereClause: StokOpnameWhereClause = {
       unitId: unitId,
     };
 
@@ -564,7 +569,7 @@ export async function getUnitLowStockItems(
       error: `Failed to fetch low stock items: ${
         error instanceof Error ? error.message : "Unknown error"
       }`,
-      data: [], // Provide empty data to avoid null
+      data: [],
     };
   }
 }
@@ -872,7 +877,6 @@ export async function getUnitMetrics(
   }
 }
 
-// Update the getUnitInventorySummary function with more debugging
 export async function getUnitInventorySummary(
   unitId: number,
   selectedMedicines?: number[]
@@ -883,8 +887,8 @@ export async function getUnitInventorySummary(
     });
 
     // Build the query with proper unit filtering
-    const whereClause: any = {
-      unitId: unitId, // This ensures all queries filter by this specific unit
+    const whereClause: StokOpnameWhereClause = {
+      unitId: unitId,
     };
 
     // Add medicine filter if provided
@@ -941,7 +945,7 @@ export async function getUnitInventorySummary(
       where: {
         ...whereClause,
         tanggalExpired: {
-          lt: currentDate, // Only items that have already expired
+          lt: currentDate,
         },
       },
     });

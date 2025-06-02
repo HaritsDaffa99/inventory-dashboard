@@ -1,16 +1,17 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-const PYTHON_API_URL =  "http://127.0.0.1:8000"
+const PYTHON_API_URL = "http://127.0.0.1:8000"
 
 export async function POST(request: NextRequest) {
   try {
-    const { unitId, medicineId, periods = 6 } = await request.json()
+    const { unitId, medicineId, periods = 6, includeHolidays = false, modelMode = "fast" } = await request.json()
 
     if (!unitId || !medicineId) {
       return NextResponse.json({ success: false, error: "Unit ID and Medicine ID are required" }, { status: 400 })
     }
 
-    console.log(`Generating forecast for Unit ${unitId}, Medicine ${medicineId}, Periods ${periods}`)
+    console.log(`Generating Prophet forecast for Unit ${unitId}, Medicine ${medicineId}, Periods ${periods}`)
+    console.log(`Model mode: ${modelMode}, Include holidays: ${includeHolidays}`)
 
     // Step 1: Get historical data from our database
     const dataResponse = await fetch(`${request.nextUrl.origin}/api/forecasting/data`, {
@@ -38,7 +39,7 @@ export async function POST(request: NextRequest) {
 
     console.log(`Found ${historicalData.length} months of historical data`)
 
-    // Step 2: Send data to Python API for ARIMA/SARIMA processing
+    // Step 2: Send data to Python API for Prophet processing
     const pythonResponse = await fetch(`${PYTHON_API_URL}/forecast`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -48,6 +49,8 @@ export async function POST(request: NextRequest) {
         historical_data: historicalData,
         periods: periods,
         train_test_split: 0.8,
+        include_holidays: includeHolidays,
+        model_mode: modelMode // This is the key fix - adding the model_mode parameter
       }),
     })
 

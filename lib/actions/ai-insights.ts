@@ -2,18 +2,54 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+// Define proper interfaces for the data structures
+interface MetricsData {
+  totalInventory?: { value: number; change: number };
+  totalReceipts?: { value: number; change: number };
+  totalDispensed?: { value: number; change: number };
+  expiredMedicines?: { value: number; change: number };
+  availableItems?: { value: number; change: number };
+  damagedItems?: { value: number; change: number };
+}
+
+interface ConditionData {
+  name: string;
+  value: number;
+  percentage: number;
+}
+
+interface TopItem {
+  id: number;
+  name: string;
+  code?: string;
+  quantity?: number;
+  stock?: number;
+  unit?: string;
+  value?: number;
+  percentage?: number;
+}
+
+interface DashboardData {
+  metrics: MetricsData;
+  selectedMedicines: number[];
+  conditionData?: ConditionData[];
+  topReceivedItems?: TopItem[];
+  topDispensedItems?: TopItem[];
+  topItemsByQuantity?: TopItem[];
+}
+
+interface InsightsResponse {
+  summary: string;
+  keyPoints: string[];
+  recommendations: string[];
+  trends: string[];
+}
+
 // Access API key and add debugging
 const API_KEY = process.env.GEMINI_API_KEY;
 console.log("API Key available:", API_KEY ? "Yes (length: " + API_KEY.length + ")" : "No");
 
-export async function getDashboardInsights(data: {
-  metrics: any;
-  selectedMedicines: number[];
-  conditionData?: any;
-  topReceivedItems?: any;
-  topDispensedItems?: any;
-  topItemsByQuantity?: any;
-}) {
+export async function getDashboardInsights(data: DashboardData) {
   try {
     // Check for API key before proceeding
     if (!API_KEY) {
@@ -56,7 +92,7 @@ function cleanResponseText(text: string): string {
 }
 
 // Helper function to create a detailed prompt for dashboard insights
-function createDashboardPrompt(data: any): string {
+function createDashboardPrompt(data: DashboardData): string {
   const { metrics, selectedMedicines, conditionData, topReceivedItems, topDispensedItems, topItemsByQuantity } = data;
   
   let prompt = `You are a senior pharmaceutical inventory analyst providing data-driven insights for healthcare executives.
@@ -107,22 +143,22 @@ function createDashboardPrompt(data: any): string {
   }
   
   // Add condition data
-  if (conditionData) {
+  if (conditionData && conditionData.length > 0) {
     prompt += `CONDITION DISTRIBUTION:\n${JSON.stringify(conditionData, null, 2)}\n\n`;
   }
   
   // Add top received items
-  if (topReceivedItems) {
+  if (topReceivedItems && topReceivedItems.length > 0) {
     prompt += `TOP RECEIVED ITEMS:\n${JSON.stringify(topReceivedItems, null, 2)}\n\n`;
   }
   
   // Add top dispensed items
-  if (topDispensedItems) {
+  if (topDispensedItems && topDispensedItems.length > 0) {
     prompt += `TOP DISPENSED ITEMS:\n${JSON.stringify(topDispensedItems, null, 2)}\n\n`;
   }
   
   // Add top items by quantity
-  if (topItemsByQuantity) {
+  if (topItemsByQuantity && topItemsByQuantity.length > 0) {
     prompt += `TOP ITEMS BY QUANTITY:\n${JSON.stringify(topItemsByQuantity, null, 2)}\n\n`;
   }
   
@@ -130,14 +166,9 @@ function createDashboardPrompt(data: any): string {
 }
 
 // Process the response into structured sections
-function processInsightsResponse(text: string): {
-  summary: string;
-  keyPoints: string[];
-  recommendations: string[];
-  trends: string[];
-} {
+function processInsightsResponse(text: string): InsightsResponse {
   // Default structure
-  const result = {
+  const result: InsightsResponse = {
     summary: "",
     keyPoints: [],
     recommendations: [],

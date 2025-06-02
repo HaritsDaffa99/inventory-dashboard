@@ -2,21 +2,75 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+// Type definitions for better type safety
+interface UnitMetrics {
+  totalMedicines: number;
+  totalValue: number;
+  lowStockCount: number;
+  expiringCount: number;
+  averageConsumption: number;
+}
+
+interface InventorySummary {
+  totalItems: number;
+  totalValue: number;
+  categories: string[];
+  averageStockLevel: number;
+}
+
+interface ConditionData {
+  condition: string;
+  count: number;
+  percentage: number;
+}
+
+interface StockHistoryEntry {
+  date: string;
+  quantity: number;
+  medicineId: number;
+  medicineName: string;
+}
+
+interface ExpiryData {
+  medicineId: number;
+  medicineName: string;
+  expiryDate: string;
+  quantity: number;
+  daysUntilExpiry: number;
+}
+
+interface TopMedicine {
+  medicineId: number;
+  medicineName: string;
+  quantity: number;
+  value: number;
+}
+
+interface LowStockItem {
+  medicineId: number;
+  medicineName: string;
+  currentStock: number;
+  minimumStock: number;
+  deficit: number;
+}
+
+interface UnitInsightsData {
+  unitId: number;
+  unitName: string;
+  metrics: UnitMetrics;
+  selectedMedicines: number[];
+  inventorySummary?: InventorySummary;
+  conditionData?: ConditionData[];
+  stockHistory?: StockHistoryEntry[];
+  expiryData?: ExpiryData[];
+  topMedicines?: TopMedicine[];
+  lowStockItems?: LowStockItem[];
+}
+
 // Access API key
 const API_KEY = process.env.GEMINI_API_KEY;
 
-export async function getUnitInsights(data: {
-  unitId: number;
-  unitName: string;
-  metrics: any;
-  selectedMedicines: number[];
-  inventorySummary?: any;
-  conditionData?: any;
-  stockHistory?: any;
-  expiryData?: any;
-  topMedicines?: any;
-  lowStockItems?: any;
-}) {
+export async function getUnitInsights(data: UnitInsightsData) {
   try {
     // Check for API key before proceeding
     if (!API_KEY) {
@@ -59,7 +113,7 @@ function cleanResponseText(text: string): string {
 }
 
 // Helper function to create a detailed prompt specific to unit data
-function createUnitPrompt(data: any): string {
+function createUnitPrompt(data: UnitInsightsData): string {
   const { 
     unitId, 
     unitName, 
@@ -156,12 +210,17 @@ function processInsightsResponse(text: string): {
   recommendations: string[];
   trends: string[];
 } {
-  // Default structure
-  const result = {
+  // Default structure with explicit type annotations
+  const result: {
+    summary: string;
+    keyPoints: string[];
+    recommendations: string[];
+    trends: string[];
+  } = {
     summary: "",
-    keyPoints: [],
-    recommendations: [],
-    trends: []
+    keyPoints: [] as string[],
+    recommendations: [] as string[],
+    trends: [] as string[]
   };
   
   // Extract sections using regex

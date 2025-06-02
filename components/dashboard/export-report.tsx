@@ -23,8 +23,55 @@ import {
   getTopDispensedLocations,
 } from "@/lib/actions/medicine";
 
+interface Metric {
+  value: number;
+  change: number | null;
+}
+
+interface DashboardMetrics {
+  totalReceipts: Metric;
+  totalDispensed: Metric;
+  availableStock: Metric;
+  stockToConsumptionRatio: Metric;
+}
+
+interface ConditionItem {
+  name: string;
+  value: number;
+  percentage: number;
+}
+
+interface TopItem {
+  name: string;
+  value: number;
+}
+
+interface InventoryItem {
+  name: string;
+  code: string;
+  quantity: number;
+  unit: string;
+  status: string;
+}
+
+interface LocationItem {
+  id?: number;
+  name: string;
+  count: number;
+  percentage: string | number;
+}
+
+interface ExportData {
+  conditionData?: ConditionItem[];
+  receivedItems?: TopItem[];
+  dispensedItems?: TopItem[];
+  topItems?: InventoryItem[];
+  receiptLocations?: LocationItem[];
+  dispensedLocations?: LocationItem[];
+}
+
 interface ExportReportProps {
-  metrics: any;
+  metrics: DashboardMetrics;
   selectedMedicines: number[];
 }
 
@@ -49,8 +96,8 @@ export function ExportReport({
   };
 
   // Fetch data for export
-  const fetchExportData = async () => {
-    const data: any = {};
+  const fetchExportData = async (): Promise<ExportData> => {
+    const data: ExportData = {};
 
     // Fetch condition data
     if (includeConditionData) {
@@ -156,7 +203,7 @@ export function ExportReport({
       if (includeConditionData && exportData.conditionData) {
         csvData.push(["Item Condition Distribution"]);
         csvData.push(["Condition", "Count", "Percentage (%)"]);
-        exportData.conditionData.forEach((item: any) => {
+        exportData.conditionData.forEach((item: ConditionItem) => {
           csvData.push([
             item.name,
             item.value.toString(),
@@ -170,7 +217,7 @@ export function ExportReport({
       if (includeTopItems && exportData.receivedItems) {
         csvData.push(["Top 10 Received Items"]);
         csvData.push(["Item Name", "Quantity"]);
-        exportData.receivedItems.forEach((item: any) => {
+        exportData.receivedItems.forEach((item: TopItem) => {
           csvData.push([item.name, item.value.toString()]);
         });
         csvData.push([]); // Empty row for spacing
@@ -180,7 +227,7 @@ export function ExportReport({
       if (includeTopItems && exportData.dispensedItems) {
         csvData.push(["Top 10 Dispensed Items"]);
         csvData.push(["Item Name", "Quantity"]);
-        exportData.dispensedItems.forEach((item: any) => {
+        exportData.dispensedItems.forEach((item: TopItem) => {
           csvData.push([item.name, item.value.toString()]);
         });
         csvData.push([]); // Empty row for spacing
@@ -190,7 +237,7 @@ export function ExportReport({
       if (includeTopItems && exportData.topItems) {
         csvData.push(["Top 10 Items by Quantity"]);
         csvData.push(["Item Name", "Code", "Quantity", "Unit", "Status"]);
-        exportData.topItems.forEach((item: any) => {
+        exportData.topItems.forEach((item: InventoryItem) => {
           csvData.push([
             item.name,
             item.code,
@@ -207,8 +254,8 @@ export function ExportReport({
         if (exportData.receiptLocations) {
           csvData.push(["Top 10 Receipt Locations"]);
           csvData.push(["Unit Name", "Count", "Percentage (%)"]);
-          exportData.receiptLocations.forEach((item: any) => {
-            csvData.push([item.name, item.count.toString(), item.percentage]);
+          exportData.receiptLocations.forEach((item: LocationItem) => {
+            csvData.push([item.name, item.count.toString(), item.percentage.toString()]);
           });
           csvData.push([]); // Empty row for spacing
         }
@@ -216,8 +263,8 @@ export function ExportReport({
         if (exportData.dispensedLocations) {
           csvData.push(["Top 10 Dispensed Locations"]);
           csvData.push(["Unit Name", "Count", "Percentage (%)"]);
-          exportData.dispensedLocations.forEach((item: any) => {
-            csvData.push([item.name, item.count.toString(), item.percentage]);
+          exportData.dispensedLocations.forEach((item: LocationItem) => {
+            csvData.push([item.name, item.count.toString(), item.percentage.toString()]);
           });
         }
       }

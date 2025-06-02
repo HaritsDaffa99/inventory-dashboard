@@ -19,6 +19,14 @@ export function ForecastMetrics({ forecastResult }: ForecastMetricsProps) {
       ? Math.abs(((summary.avg_monthly - summary.historical_avg) / summary.historical_avg) * 100)
       : 0
 
+  // Helper function to safely render unknown values
+  const renderValue = (value: unknown): string => {
+    if (typeof value === 'string' || typeof value === 'number') {
+      return String(value)
+    }
+    return 'N/A'
+  }
+
   return (
     <div className="space-y-6">
       {/* Main Metrics */}
@@ -76,15 +84,51 @@ export function ForecastMetrics({ forecastResult }: ForecastMetricsProps) {
           <CardContent>
             <div className="text-2xl font-bold">{model_type}</div>
             <div className="flex gap-1 mt-1">
-              <Badge variant="secondary" className="text-xs">
-                {model_type === "SARIMA"
-                  ? `(${model_parameters.p},${model_parameters.d},${model_parameters.q})(${model_parameters.seasonal_P},${model_parameters.seasonal_D},${model_parameters.seasonal_Q})${model_parameters.seasonal_m}`
-                  : `(${model_parameters.p},${model_parameters.d},${model_parameters.q})`}
-              </Badge>
+              {model_type === "Prophet" && model_parameters && (
+                <Badge variant="secondary" className="text-xs">
+                  {renderValue(model_parameters.seasonality_mode)} seasonality
+                </Badge>
+              )}
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Prophet Parameters */}
+      {model_type === "Prophet" && model_parameters && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Target className="h-5 w-5" />
+              Prophet Model Parameters
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Changepoint Prior Scale */}
+              <div className="text-center p-4 bg-muted/50 rounded-lg">
+                <div className="text-lg font-bold text-blue-600">{renderValue(model_parameters.changepoint_prior_scale)}</div>
+                <div className="text-sm font-medium">Changepoint Prior Scale</div>
+                <div className="text-xs text-muted-foreground">Controls trend flexibility</div>
+              </div>
+
+              {/* Seasonality Mode */}
+              <div className="text-center p-4 bg-muted/50 rounded-lg">
+                <div className="text-lg font-bold text-green-600">{renderValue(model_parameters.seasonality_mode)}</div>
+                <div className="text-sm font-medium">Seasonality Mode</div>
+                <div className="text-xs text-muted-foreground">How seasonal effects are combined</div>
+              </div>
+
+              {/* Seasonality Prior Scale */}
+              <div className="text-center p-4 bg-muted/50 rounded-lg">
+                <div className="text-lg font-bold text-orange-600">{renderValue(model_parameters.seasonality_prior_scale)}</div>
+                <div className="text-sm font-medium">Seasonality Prior Scale</div>
+                <div className="text-xs text-muted-foreground">Controls seasonality strength</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Model Performance Metrics */}
       {metrics && (

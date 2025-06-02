@@ -24,7 +24,6 @@ import { getMedicinesApproachingExpiry } from "@/lib/actions/unit-stock-history"
 import { getTopMedicinesInUnit } from "@/lib/actions/unit-stock-history"; // Import to fetch top medicines
 import { getLowStockWarnings } from "@/lib/actions/unit-stock-history"; // Import to fetch low stock items
 import { getUnitInventorySummary } from "@/lib/actions/unit-metrics"; // Import to fetch inventory summary
-import { useRouter } from "next/navigation";
 
 interface UnitDetailPageProps {
   unit: {
@@ -46,8 +45,60 @@ interface Unit {
   levelUnit: number;
 }
 
+// Update interfaces to match the AI insights panel expected types
+interface Metric {
+  label: string;
+  value: number;
+  change: number;
+}
+
+interface InventoryItem {
+  id: number;
+  name: string;
+  quantity: number;
+}
+
+interface ConditionDataItem {
+  name: string;
+  value: number;
+  percentage: number;
+  category: string;
+}
+
+interface StockHistoryPoint {
+  date: string;
+  quantity: number;
+}
+
+interface ExpiryDataItem {
+  id: number;
+  name: string;
+  code: string;
+  quantity: number;
+  unit: string;
+  daysRemaining: number;
+  expiryDate: string;
+}
+
+interface TopMedicineItem {
+  id: number;
+  name: string;
+  code: string;
+  quantity: number;
+  unit: string;
+  usage: number;
+}
+
+interface LowStockItem {
+  id: number;
+  name: string;
+  code: string;
+  quantity: number;
+  unit: string;
+  minRequired: number;
+}
+
 export function UnitDetailPage({ unit }: UnitDetailPageProps) {
-  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [units, setUnits] = useState<Unit[]>([]);
   const [selectedUnitId, setSelectedUnitId] = useState<string>(
@@ -55,14 +106,14 @@ export function UnitDetailPage({ unit }: UnitDetailPageProps) {
   );
   const [selectedMedicines, setSelectedMedicines] = useState<number[]>([]);
 
-  // New states for AI insights data
-  const [metrics, setMetrics] = useState<any>(null);
-  const [conditionData, setConditionData] = useState<any>(null);
-  const [stockHistory, setStockHistory] = useState<any>(null);
-  const [expiryData, setExpiryData] = useState<any>(null);
-  const [topMedicines, setTopMedicines] = useState<any>(null);
-  const [lowStockItems, setLowStockItems] = useState<any>(null);
-  const [inventorySummary, setInventorySummary] = useState<any>(null);
+  // Update states to use the correct types expected by AI insights panel
+  const [metrics, setMetrics] = useState<Metric[] | null>(null);
+  const [conditionData, setConditionData] = useState<ConditionDataItem[] | null>(null);
+  const [stockHistory, setStockHistory] = useState<StockHistoryPoint[] | null>(null);
+  const [expiryData, setExpiryData] = useState<ExpiryDataItem[] | null>(null);
+  const [topMedicines, setTopMedicines] = useState<TopMedicineItem[] | null>(null);
+  const [lowStockItems, setLowStockItems] = useState<LowStockItem[] | null>(null);
+  const [inventorySummary, setInventorySummary] = useState<InventoryItem[] | null>(null);
   const [isDataLoading, setIsDataLoading] = useState(true);
 
   // Fix hydration issues by only rendering after component is mounted
@@ -95,58 +146,130 @@ export function UnitDetailPage({ unit }: UnitDetailPageProps) {
     async function fetchDataForInsights() {
       setIsDataLoading(true);
       try {
-        // Fetch unit metrics
+        // Fetch unit metrics and transform to expected format
         const metricsResponse = await getUnitMetrics(unit.id);
         if (metricsResponse.success && metricsResponse.data) {
-          setMetrics(metricsResponse.data);
+          const transformedMetrics: Metric[] = [
+            {
+              label: "Total Inventory",
+              value: metricsResponse.data.totalInventory.value,
+              change: metricsResponse.data.totalInventory.change,
+            },
+            {
+              label: "Total Receipts",
+              value: metricsResponse.data.totalReceipts.value,
+              change: metricsResponse.data.totalReceipts.change,
+            },
+            {
+              label: "Total Dispensed",
+              value: metricsResponse.data.totalDispensed.value,
+              change: metricsResponse.data.totalDispensed.change,
+            },
+            {
+              label: "Expired Medicines",
+              value: metricsResponse.data.expiredMedicines.value,
+              change: metricsResponse.data.expiredMedicines.change,
+            },
+          ];
+          setMetrics(transformedMetrics);
         }
 
-        // Fetch inventory summary
+        // Fetch inventory summary and transform to expected format
         const inventorySummaryResponse = await getUnitInventorySummary(unit.id);
         if (inventorySummaryResponse.success && inventorySummaryResponse.data) {
-          setInventorySummary(inventorySummaryResponse.data);
+          const transformedInventory: InventoryItem[] = [
+            {
+              id: 1,
+              name: "Unique Medicines",
+              quantity: inventorySummaryResponse.data.uniqueMedicines,
+            },
+            {
+              id: 2,
+              name: "Available",
+              quantity: inventorySummaryResponse.data.available,
+            },
+            {
+              id: 3,
+              name: "Damaged/Expired",
+              quantity: inventorySummaryResponse.data.damagedOrExpired,
+            },
+          ];
+          setInventorySummary(transformedInventory);
         }
 
-        // Fetch condition distribution
+        // Fetch condition distribution and transform to expected format
         const conditionResponse = await getItemConditionDistribution(
           unit.id,
           selectedMedicines.length > 0 ? selectedMedicines : undefined
         );
         if (conditionResponse.success && conditionResponse.data) {
-          setConditionData(conditionResponse.data);
+          const transformedConditions: ConditionDataItem[] = conditionResponse.data.map((item) => ({
+            ...item,
+            category: item.name.toLowerCase(), // Add category field
+          }));
+          setConditionData(transformedConditions);
         }
 
-        // Fetch stock history
+        // Fetch stock history and transform to expected format
         const stockHistoryResponse = await getUnitStockHistory(unit.id);
         if (stockHistoryResponse.success && stockHistoryResponse.data) {
-          setStockHistory(stockHistoryResponse.data);
+          const transformedStockHistory: StockHistoryPoint[] = stockHistoryResponse.data.map((item) => ({
+            date: item.month,
+            quantity: item.value,
+          }));
+          setStockHistory(transformedStockHistory);
         }
 
-        // Fetch expiry data
+        // Fetch expiry data and transform to expected format
         const expiryResponse = await getMedicinesApproachingExpiry(
           unit.id,
           selectedMedicines.length > 0 ? selectedMedicines : undefined
         );
         if (expiryResponse.success && expiryResponse.data) {
-          setExpiryData(expiryResponse.data);
+          const transformedExpiry: ExpiryDataItem[] = expiryResponse.data.map((item) => ({
+            id: item.id,
+            name: item.name,
+            code: item.code,
+            quantity: item.quantity,
+            unit: item.unit,
+            daysRemaining: item.daysRemaining,
+            expiryDate: item.expiryDate.toISOString(), // Convert Date to string
+          }));
+          setExpiryData(transformedExpiry);
         }
 
-        // Fetch top medicines
+        // Fetch top medicines and transform to expected format
         const topMedicinesResponse = await getTopMedicinesInUnit(
           unit.id,
           selectedMedicines.length > 0 ? selectedMedicines : undefined
         );
         if (topMedicinesResponse.success && topMedicinesResponse.data) {
-          setTopMedicines(topMedicinesResponse.data);
+          const transformedTopMedicines: TopMedicineItem[] = topMedicinesResponse.data.map((item) => ({
+            id: item.id,
+            name: item.name,
+            code: item.code,
+            quantity: item.stock, // Map stock to quantity
+            unit: item.unit,
+            usage: 0, // Default value since not provided by API
+          }));
+          setTopMedicines(transformedTopMedicines);
         }
 
-        // Fetch low stock items
+        // Fetch low stock items and transform to expected format
         const lowStockResponse = await getLowStockWarnings(
           unit.id,
           selectedMedicines.length > 0 ? selectedMedicines : undefined
         );
         if (lowStockResponse.success && lowStockResponse.data) {
-          setLowStockItems(lowStockResponse.data);
+          const transformedLowStock: LowStockItem[] = lowStockResponse.data.map((item) => ({
+            id: item.id,
+            name: item.name,
+            code: item.code,
+            quantity: item.currentStock, // Map currentStock to quantity
+            unit: item.unit,
+            minRequired: item.minimumThreshold, // Map minimumThreshold to minRequired
+          }));
+          setLowStockItems(transformedLowStock);
         }
       } catch (error) {
         console.error("Error fetching data for insights:", error);
@@ -254,14 +377,14 @@ export function UnitDetailPage({ unit }: UnitDetailPageProps) {
           <UnitAIInsightsPanel
             unitId={unit.id}
             unitName={unit.namaUnit}
-            metrics={metrics}
+            metrics={metrics || []}
             selectedMedicines={selectedMedicines}
-            inventorySummary={inventorySummary}
-            conditionData={conditionData}
-            stockHistory={stockHistory}
-            expiryData={expiryData}
-            topMedicines={topMedicines}
-            lowStockItems={lowStockItems}
+            inventorySummary={inventorySummary || []}
+            conditionData={conditionData || []}
+            stockHistory={stockHistory || []}
+            expiryData={expiryData || []}
+            topMedicines={topMedicines || []}
+            lowStockItems={lowStockItems || []}
             isLoading={isDataLoading}
           />
         </div>

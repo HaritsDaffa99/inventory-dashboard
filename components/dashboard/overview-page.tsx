@@ -20,22 +20,23 @@ interface Unit {
   levelUnit: number
 }
 
+// Updated interface to allow null values for change properties
 interface DashboardMetrics {
   totalReceipts: {
     value: number
-    change: number
+    change: number | null
   }
   totalDispensed: {
     value: number
-    change: number
+    change: number | null
   }
   availableStock: {
     value: number
-    change: number
+    change: number | null
   }
   stockToConsumptionRatio: {
     value: number
-    change: number
+    change: number | null
   }
 }
 
@@ -107,6 +108,27 @@ export function OverviewPage() {
     return null
   }
 
+  // Transform metrics data for AI Insights Panel - always return an object, never undefined
+  const transformedMetrics = {
+    totalInventory: metrics ? {
+      value: metrics.availableStock.value,
+      change: metrics.availableStock.change ?? 0
+    } : { value: 0, change: 0 },
+    stockValue: metrics ? {
+      value: metrics.stockToConsumptionRatio.value,
+      change: metrics.stockToConsumptionRatio.change ?? 0
+    } : { value: 0, change: 0 },
+    expiringItems: { value: 0, change: 0 } // Default value
+  }
+
+  // Create default metrics for ExportReport when metrics is null
+  const defaultMetrics: DashboardMetrics = {
+    totalReceipts: { value: 0, change: 0 },
+    totalDispensed: { value: 0, change: 0 },
+    availableStock: { value: 0, change: 0 },
+    stockToConsumptionRatio: { value: 0, change: 0 }
+  }
+
   return (
     <div className="min-h-screen bg-background w-full">
       <div className="flex-1 space-y-6 p-4 md:p-8 pt-6">
@@ -116,7 +138,7 @@ export function OverviewPage() {
             <p className="text-muted-foreground">Monitor inventory across all units</p>
           </div>
           <div className="flex items-center gap-2">
-            <ExportReport metrics={metrics} selectedMedicines={selectedMedicines} />
+            <ExportReport metrics={metrics || defaultMetrics} selectedMedicines={selectedMedicines} />
             <NotificationBell />
             <Select value={selectedUnitId} onValueChange={handleUnitChange} disabled={isLoading || isPending}>
               <SelectTrigger className="w-[200px]">
@@ -142,9 +164,9 @@ export function OverviewPage() {
 
         <TablesSection selectedMedicines={selectedMedicines} />
         
-        {/* Add AI Insights Panel at the bottom */}
+        {/* Add AI Insights Panel with transformed metrics */}
         <AIInsightsPanel
-          metrics={metrics}
+          metrics={transformedMetrics}
           selectedMedicines={selectedMedicines}
           isLoading={isLoading || isPending}
         />

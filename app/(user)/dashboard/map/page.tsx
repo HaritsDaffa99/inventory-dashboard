@@ -8,7 +8,7 @@ export default async function MapLayout() {
 
   return (
     <div className="p-4">
-      <MapPage units={units} />
+      <MapPage units={units || []} />
     </div>
   )
 }

@@ -17,14 +17,10 @@ export interface ForecastData {
   upper_ci: number
 }
 
-export interface ModelParameters {
-  p: number
-  d: number
-  q: number
-  seasonal_P: number
-  seasonal_D: number
-  seasonal_Q: number
-  seasonal_m: number
+export interface ProphetParameters {
+  changepoint_prior_scale: number
+  seasonality_mode: string
+  seasonality_prior_scale: number
 }
 
 export interface ForecastSummary {
@@ -60,11 +56,20 @@ export interface ForecastResult {
   unit_id: number
   medicine_id: number
   model_type: string
-  model_parameters: ModelParameters
+  model_parameters: ProphetParameters | Record<string, unknown>
   historical_data: HistoricalData[]
   forecast_data: ForecastData[]
   summary: ForecastSummary
   recommendations: Recommendations
   metrics?: ModelMetrics
   error?: string
+}
+
+// New interface for AI insights
+export interface ForecastInsights {
+  executiveSummary: string
+  stockRecommendations: string[]
+  monthlyPlan: { month: string; recommendation: string }[]
+  costImplications: string[]
+  riskFactors: string[]
 }

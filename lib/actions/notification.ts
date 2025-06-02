@@ -274,6 +274,9 @@ export async function markNotificationAsRead(notificationId: string) {
 export async function markAllNotificationsAsRead(unitId?: number) {
   try {
     // In a real application, you would update all notifications in the database
+    // for the specific unit if unitId is provided, or all units if not provided
+    console.log(`Marking all notifications as read${unitId ? ` for unit ${unitId}` : ''}`);
+    
     // Since we're generating notifications on the fly, we'll return a success response
 
     return {

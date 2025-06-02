@@ -35,13 +35,13 @@ export function ForecastChart({ forecastResult }: ForecastChartProps) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <TrendingUp className="h-5 w-5" />
-          Usage Forecast Chart
+          Prophet Forecast Chart
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="h-96 w-full">
+        <div className="h-96 w-full overflow-hidden">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+            <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }} style={{ overflow: 'visible' }}>
               <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
               <XAxis dataKey="date" tick={{ fontSize: 12 }} angle={-45} textAnchor="end" height={60} />
               <YAxis tick={{ fontSize: 12 }} />
@@ -51,7 +51,7 @@ export function ForecastChart({ forecastResult }: ForecastChartProps) {
                   border: "1px solid hsl(var(--border))",
                   borderRadius: "6px",
                 }}
-                formatter={(value: any, name: string) => {
+                formatter={(value, name) => {
                   if (value === null) return [null, name]
                   return [Number(value).toFixed(2), name]
                 }}
@@ -77,7 +77,7 @@ export function ForecastChart({ forecastResult }: ForecastChartProps) {
                 strokeWidth={2}
                 strokeDasharray="5 5"
                 dot={{ fill: "hsl(var(--destructive))", strokeWidth: 2, r: 4 }}
-                name="Forecasted Usage"
+                name="Prophet Forecast"
                 connectNulls={false}
               />
 
@@ -111,7 +111,7 @@ export function ForecastChart({ forecastResult }: ForecastChartProps) {
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 bg-destructive rounded-full"></div>
-            <span>Forecast</span>
+            <span>Prophet Forecast</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 bg-destructive/20 rounded-full"></div>

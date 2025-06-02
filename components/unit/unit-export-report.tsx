@@ -15,7 +15,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Download, FileSpreadsheet, Loader2 } from "lucide-react"
 import {
-  getUnitConditionDistribution,
   getUnitMetrics,
 } from "@/lib/actions/unit-metrics"
 import { 
@@ -32,6 +31,60 @@ interface UnitExportReportProps {
   selectedMedicines: number[]
 }
 
+interface MetricsData {
+  totalInventory: { value: number; change: number }
+  totalReceipts: { value: number; change: number }
+  totalDispensed: { value: number; change: number }
+  expiredMedicines: { value: number; change: number }
+}
+
+interface ConditionData {
+  name: string
+  value: number
+  percentage: number
+}
+
+interface StockHistoryData {
+  month: string
+  value: number
+}
+
+interface ExpiryData {
+  id: number
+  name: string
+  code: string
+  quantity: number
+  daysRemaining: number
+  expiryDate: Date
+}
+
+interface TopMedicineData {
+  id: number
+  name: string
+  code: string
+  stock: number
+  unit: string
+  status: string
+}
+
+interface LowStockData {
+  id: number
+  name: string
+  code: string
+  currentStock: number
+  minimumThreshold: number
+  status: string
+}
+
+interface ExportData {
+  metrics?: MetricsData
+  conditionData?: ConditionData[]
+  stockHistory?: StockHistoryData[]
+  approachingExpiryItems?: ExpiryData[]
+  topItems?: TopMedicineData[]
+  lowStockItems?: LowStockData[]
+}
+
 export function UnitExportReport({ unitId, unitName, selectedMedicines }: UnitExportReportProps) {
   const [includeMetrics, setIncludeMetrics] = useState(true)
   const [includeTopItems, setIncludeTopItems] = useState(true)
@@ -41,7 +94,7 @@ export function UnitExportReport({ unitId, unitName, selectedMedicines }: UnitEx
   const [includeLowStockData, setIncludeLowStockData] = useState(true)
   const [isExporting, setIsExporting] = useState(false)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [exportData, setExportData] = useState<any>(null)
+  const [exportData, setExportData] = useState<ExportData | null>(null)
 
   // Format date for filename
   const formatDate = () => {
@@ -49,23 +102,10 @@ export function UnitExportReport({ unitId, unitName, selectedMedicines }: UnitEx
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
   }
 
-  // Safely call a server action with proper error handling
-  const callServerAction = async (action: Function, ...args: any[]) => {
-    try {
-      // Make a copy of args to ensure we're not passing any problematic references
-      const safeArgs = JSON.parse(JSON.stringify(args))
-      const response = await action(...safeArgs)
-      return response
-    } catch (error) {
-      console.error(`Error calling server action:`, error)
-      return { success: false, data: [], error: "Failed to call server action" }
-    }
-  }
-
   // Fetch data for export - breaking it down into steps
   const fetchExportData = async () => {
     setIsExporting(true)
-    const data: any = {}
+    const data: ExportData = {}
     
     try {
       // Validate unitId
@@ -80,50 +120,50 @@ export function UnitExportReport({ unitId, unitName, selectedMedicines }: UnitEx
       
       // Ensure selectedMedicines is an array
       const safeMedicines = Array.isArray(selectedMedicines) ? [...selectedMedicines] : []
+      const medicinesParam = safeMedicines.length > 0 ? safeMedicines : undefined
 
       // Step 1: Fetch metrics data
       if (includeMetrics) {
         try {
-          const metricsResponse = await callServerAction(getUnitMetrics, safeUnitId, safeMedicines)
+          const metricsResponse = await getUnitMetrics(safeUnitId, medicinesParam)
           if (metricsResponse?.success) {
-            data.metrics = metricsResponse.data
+            data.metrics = metricsResponse.data as MetricsData
           }
         } catch (error) {
           console.error("Failed to fetch metrics:", error)
         }
       }
 
-      // Step 2: Fetch condition data - use getItemConditionDistribution from medicine.ts instead
+      // Step 2: Fetch condition data
       if (includeConditionData) {
         try {
-          const conditionResponse = await callServerAction(getItemConditionDistribution, safeUnitId, safeMedicines)
+          const conditionResponse = await getItemConditionDistribution(safeUnitId, safeMedicines)
           if (conditionResponse?.success) {
-            data.conditionData = conditionResponse.data
+            data.conditionData = conditionResponse.data as ConditionData[]
           }
         } catch (error) {
           console.error("Failed to fetch condition data:", error)
         }
       }
 
-      // Step 3: Fetch expiry data from unit-stock-history
+      // Step 3: Fetch expiry data
       if (includeExpiryData) {
         try {
-          const expiryResponse = await callServerAction(getMedicinesApproachingExpiry, safeUnitId, safeMedicines)
+          const expiryResponse = await getMedicinesApproachingExpiry(safeUnitId, medicinesParam)
           if (expiryResponse?.success) {
-            // Store the raw expiry data for individual medicine display
-            data.approachingExpiryItems = expiryResponse.data;
+            data.approachingExpiryItems = expiryResponse.data as ExpiryData[]
           }
         } catch (error) {
           console.error("Failed to fetch expiry data:", error)
         }
       }
 
-      // Step 4: Fetch stock history data for the line chart
+      // Step 4: Fetch stock history data
       if (includeStockHistory) {
         try {
-          const stockHistoryResponse = await callServerAction(getUnitStockHistory, safeUnitId)
+          const stockHistoryResponse = await getUnitStockHistory(safeUnitId)
           if (stockHistoryResponse?.success) {
-            data.stockHistory = stockHistoryResponse.data
+            data.stockHistory = stockHistoryResponse.data as StockHistoryData[]
           }
         } catch (error) {
           console.error("Failed to fetch stock history:", error)
@@ -133,10 +173,9 @@ export function UnitExportReport({ unitId, unitName, selectedMedicines }: UnitEx
       // Step 5: Fetch top items data
       if (includeTopItems) {
         try {
-          // Get top medicines by quantity
-          const topMedicinesResponse = await callServerAction(getTopMedicinesInUnit, safeUnitId, safeMedicines)
+          const topMedicinesResponse = await getTopMedicinesInUnit(safeUnitId, medicinesParam)
           if (topMedicinesResponse?.success) {
-            data.topItems = topMedicinesResponse.data
+            data.topItems = topMedicinesResponse.data as TopMedicineData[]
           }
         } catch (error) {
           console.error("Failed to fetch top medicines data:", error)
@@ -146,9 +185,9 @@ export function UnitExportReport({ unitId, unitName, selectedMedicines }: UnitEx
       // Step 6: Fetch low stock items
       if (includeLowStockData) {
         try {
-          const lowStockResponse = await callServerAction(getLowStockWarnings, safeUnitId, safeMedicines)
+          const lowStockResponse = await getLowStockWarnings(safeUnitId, medicinesParam)
           if (lowStockResponse?.success) {
-            data.lowStockItems = lowStockResponse.data
+            data.lowStockItems = lowStockResponse.data as LowStockData[]
           }
         } catch (error) {
           console.error("Failed to fetch low stock items:", error)
@@ -165,7 +204,7 @@ export function UnitExportReport({ unitId, unitName, selectedMedicines }: UnitEx
   }
 
   // Generate CSV content
-  const generateCSVData = (data: any) => {
+  const generateCSVData = (data: ExportData) => {
     const csvData: string[][] = []
     
     // Add report title and date
@@ -179,7 +218,7 @@ export function UnitExportReport({ unitId, unitName, selectedMedicines }: UnitEx
       csvData.push(["Metric", "Value", "Change (%)"])
       
       // Safely access metrics data
-      const metrics = data.metrics || {}
+      const metrics = data.metrics
       
       csvData.push([
         "Total Inventory",
@@ -213,7 +252,7 @@ export function UnitExportReport({ unitId, unitName, selectedMedicines }: UnitEx
       csvData.push(["Stock History"])
       csvData.push(["Month", "Stock Level"])
       
-      data.stockHistory.forEach((item: any) => {
+      data.stockHistory.forEach((item: StockHistoryData) => {
         csvData.push([
           item.month || "Unknown",
           item.value?.toString() || "0"
@@ -230,12 +269,12 @@ export function UnitExportReport({ unitId, unitName, selectedMedicines }: UnitEx
       
       // Sort by days remaining (ascending)
       const sortedItems = [...data.approachingExpiryItems]
-        .sort((a, b) => a.daysRemaining - b.daysRemaining);
+        .sort((a, b) => a.daysRemaining - b.daysRemaining)
       
-      sortedItems.forEach((item: any) => {
+      sortedItems.forEach((item: ExpiryData) => {
         const expiryDate = item.expiryDate ? 
           new Date(item.expiryDate).toLocaleDateString() : 
-          "Unknown";
+          "Unknown"
           
         csvData.push([
           item.name || "Unknown",
@@ -254,7 +293,7 @@ export function UnitExportReport({ unitId, unitName, selectedMedicines }: UnitEx
       csvData.push(["Item Condition Distribution"])
       csvData.push(["Condition", "Count", "Percentage (%)"])
       
-      data.conditionData.forEach((item: any) => {
+      data.conditionData.forEach((item: ConditionData) => {
         csvData.push([
           item.name || "Unknown",
           item.value?.toString() || "0",
@@ -270,7 +309,7 @@ export function UnitExportReport({ unitId, unitName, selectedMedicines }: UnitEx
       csvData.push(["Top Medicines by Quantity"])
       csvData.push(["Medicine Name", "Code", "Stock", "Unit", "Status"])
       
-      data.topItems.forEach((item: any) => {
+      data.topItems.forEach((item: TopMedicineData) => {
         csvData.push([
           item.name || "Unknown",
           item.code || "-",
@@ -288,7 +327,7 @@ export function UnitExportReport({ unitId, unitName, selectedMedicines }: UnitEx
       csvData.push(["Low Stock Items"])
       csvData.push(["Item Name", "Code", "Current Stock", "Minimum Threshold", "Status"])
       
-      data.lowStockItems.forEach((item: any) => {
+      data.lowStockItems.forEach((item: LowStockData) => {
         csvData.push([
           item.name || "Unknown",
           item.code || "-",
