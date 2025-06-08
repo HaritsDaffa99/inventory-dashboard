@@ -65,11 +65,74 @@ export interface ForecastResult {
   error?: string
 }
 
-// New interface for AI insights
+// Updated interface for AI insights - removed costImplications and changed monthlyPlan structure
 export interface ForecastInsights {
   executiveSummary: string
   stockRecommendations: string[]
-  monthlyPlan: { month: string; recommendation: string }[]
-  costImplications: string[]
+  monthlyStockPlan: {
+    month: string
+    recommendedStock: string
+    expectedUsage: string
+    orderAction: string
+  }[]
   riskFactors: string[]
+}
+
+// NEW: Disease outbreak types
+export interface DiseaseOutbreakData {
+  category_id: string
+  category_name: string
+  diseases: string[]
+  total_medicines: number
+  priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
+  monthly_usage: {
+    month: string
+    usage: number
+    units_affected: number
+  }[]
+  risk_level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+  outbreak_probability: number
+  trend: 'INCREASING' | 'DECREASING' | 'STABLE'
+}
+
+export interface OutbreakAlert {
+  category_id: string
+  category_name: string
+  unit_id: number
+  unit_name: string
+  alert_level: 'WARNING' | 'OUTBREAK' | 'CRITICAL'
+  current_usage: number
+  baseline_usage: number
+  increase_percentage: number
+  month: string
+  recommendations: string[]
+}
+
+export interface HistoricalUsageData {
+  category_id: string
+  category_name: string
+  unit_id: number
+  unit_name: string
+  monthly_usage: {
+    month: string // YYYY-MM format
+    usage: number
+    medicine_count: number
+  }[]
+  total_usage: number
+  avg_monthly_usage: number
+  trend: 'INCREASING' | 'DECREASING' | 'STABLE'
+}
+
+export interface MonthlyUsageSummary {
+  category_id: string
+  category_name: string
+  priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
+  total_usage: number
+  units_affected: number
+  avg_monthly_usage: number
+  monthly_data: {
+    month: string
+    usage: number
+  }[]
+  trend: 'INCREASING' | 'DECREASING' | 'STABLE'
 }

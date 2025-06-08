@@ -32,12 +32,156 @@ class ForecastingModel:
     """
     Prophet-based forecasting model for medicine usage
     Supports three modes: fast, enhanced, and comprehensive
+    All modes now support smart medical holidays when enabled
     """
     
     def __init__(self):
         self.model = None
         self.best_params = None
+        # Initialize medical intelligence components
+        self.vaccine_classifier = self._init_vaccine_classifier()
+        self.medical_holidays_cache = None
     
+    def _init_vaccine_classifier(self):
+        """Initialize vaccine/medicine classification based on real database"""
+        return {
+            'emergency': [
+                'anti-snake venom', 'antivenom', 'snake venom', 'snake',
+                'anti-rabies', 'rabies vaccine', 'rabies',
+                'anti-tetanus serum', 'ats', 'tetanus serum',
+                'anti-diphtheria serum', 'ads', 'diphtheria serum'
+            ],
+            'routine_immunization': [
+                'dpt', 'pentavac', 'combe five', 'bcg',
+                'measles-rubella', 'measles', 'rubella',
+                'polio', 'ipv', 'nopv2', 'polio vaccine',
+                'pcv', 'pneumococcal', 'rotavirus', 'hpv'
+            ],
+            'hepatitis_prevention': [
+                'hepatitis b', 'hb vaccine', 'hbig', 'hepatitis'
+            ],
+            'covid_vaccines': [
+                'covid-19', 'indovac', 'covid vaccine', 'covid'
+            ],
+            'safety_multipliers': {
+                'emergency': 2.0,           # 100% more safety stock
+                'routine_immunization': 1.5, # 50% more safety stock
+                'hepatitis_prevention': 1.3, # 30% more safety stock
+                'covid_vaccines': 1.2,      # 20% more safety stock
+                'standard': 1.0             # Normal safety stock
+            },
+            'category_descriptions': {
+                'emergency': 'Emergency/Life-saving medicine',
+                'routine_immunization': 'Routine childhood immunization',
+                'hepatitis_prevention': 'Hepatitis prevention vaccine',
+                'covid_vaccines': 'COVID-19 vaccination',
+                'standard': 'Standard medicine/vaccine'
+            }
+        }
+    
+    def _create_medical_holidays(self):
+        """Create medical-specific holidays for vaccination campaigns and disease seasons"""
+        if self.medical_holidays_cache is not None:
+            return self.medical_holidays_cache
+        
+        # Medical holidays based on real healthcare patterns
+        medical_holidays_data = [
+            # Childhood vaccination seasons
+            ('School_Immunization_Drive', '09-01', -14, 14),    # September - back to school
+            ('Infant_Vaccination_Peak', '03-15', -7, 7),        # March - new births + catch-up
+            
+            # Disease outbreak seasons
+            ('Flu_Season_Peak', '01-15', -10, 10),              # January - respiratory diseases peak
+            ('Measles_Outbreak_Season', '04-15', -14, 14),      # April-May - typical outbreak time
+            ('Diarrhea_Season_Peak', '11-01', -7, 7),           # November - rotavirus season starts
+            
+            # Emergency medicine peaks
+            ('Snake_Bite_Season', '06-15', -30, 30),            # June-August - outdoor activity season
+            ('Rabies_Risk_Season', '07-15', -21, 21),           # July-September - animal activity peak
+            
+            # Special campaigns
+            ('Hepatitis_B_Campaign', '10-01', -7, 7),           # October - national campaign month
+            ('COVID_Booster_Campaign', '12-01', -14, 14),       # December - annual booster drive
+        ]
+        
+        # Create holidays for multiple years
+        holidays_list = []
+        for year in range(2022, 2028):  # 6 years of holidays
+            for holiday_name, date_str, lower_window, upper_window in medical_holidays_data:
+                holidays_list.append({
+                    'holiday': holiday_name,
+                    'ds': pd.to_datetime(f"{year}-{date_str}"),
+                    'lower_window': lower_window,
+                    'upper_window': upper_window
+                })
+        
+        self.medical_holidays_cache = pd.DataFrame(holidays_list)
+        return self.medical_holidays_cache
+    
+    def _categorize_medicine(self, medicine_id: int, medicine_name: str = ""):
+        """Categorize medicine and return category + safety multiplier"""
+        search_text = f"{medicine_id} {medicine_name}".lower()
+        
+        # Check each category
+        for category in ['emergency', 'routine_immunization', 'hepatitis_prevention', 'covid_vaccines']:
+            keywords = self.vaccine_classifier[category]
+            if any(keyword in search_text for keyword in keywords):
+                multiplier = self.vaccine_classifier['safety_multipliers'][category]
+                description = self.vaccine_classifier['category_descriptions'][category]
+                return category, multiplier, description
+        
+        # Default category
+        return 'standard', self.vaccine_classifier['safety_multipliers']['standard'], self.vaccine_classifier['category_descriptions']['standard']
+    
+    def _get_relevant_holidays(self, medicine_category: str):
+        """Get holidays relevant to specific medicine categories"""
+        holiday_mapping = {
+            'emergency': ['Snake_Bite_Season', 'Rabies_Risk_Season', 'Flu_Season_Peak'],
+            'routine_immunization': ['School_Immunization_Drive', 'Infant_Vaccination_Peak', 'Measles_Outbreak_Season'],
+            'hepatitis_prevention': ['Hepatitis_B_Campaign', 'School_Immunization_Drive'],
+            'covid_vaccines': ['COVID_Booster_Campaign', 'Flu_Season_Peak'],
+            'standard': ['Flu_Season_Peak']  # Basic seasonal effect
+        }
+        
+        relevant_holiday_names = holiday_mapping.get(medicine_category, ['Flu_Season_Peak'])
+        all_holidays = self._create_medical_holidays()
+        
+        # Filter holidays to only relevant ones
+        return all_holidays[all_holidays['holiday'].isin(relevant_holiday_names)]
+    
+    def _calculate_smart_safety_stock(self, forecast_std: float, medicine_category: str, safety_multiplier: float):
+        """Calculate intelligent safety stock based on medicine criticality"""
+        base_safety_factor = 1.65  # Z-score for 95% service level
+        smart_safety_stock = base_safety_factor * safety_multiplier * forecast_std
+        standard_safety_stock = base_safety_factor * forecast_std
+        
+        # Determine review frequency and service level based on criticality
+        if medicine_category == 'emergency':
+            review_frequency = 'Daily'
+            service_level = '99.5%'
+            max_stockout_risk = '0.1%'
+        elif medicine_category in ['routine_immunization', 'hepatitis_prevention']:
+            review_frequency = 'Weekly'
+            service_level = '98%'
+            max_stockout_risk = '1%'
+        elif medicine_category == 'covid_vaccines':
+            review_frequency = 'Weekly'
+            service_level = '97%'
+            max_stockout_risk = '1.5%'
+        else:
+            review_frequency = 'Bi-weekly'
+            service_level = '95%'
+            max_stockout_risk = '2.5%'
+        
+        return {
+            'smart_safety_stock': round(smart_safety_stock, 2),
+            'standard_safety_stock': round(standard_safety_stock, 2),
+            'additional_safety_units': round(smart_safety_stock - standard_safety_stock, 2),
+            'review_frequency': review_frequency,
+            'service_level': service_level,
+            'max_stockout_risk': max_stockout_risk
+        }
+
     def prepare_data_for_prophet(self, historical_data: List[Dict]) -> pd.DataFrame:
         """Convert historical data to Prophet format (ds, y columns)"""
         df = pd.DataFrame(historical_data)
@@ -623,9 +767,11 @@ class ForecastingModel:
     
     def generate_forecast(self, unit_id: int, medicine_id: int, historical_data: List[Dict], 
                          periods: int = 6, train_test_split: float = 0.8, 
-                         include_holidays: bool = False, model_mode: str = "fast") -> Dict[str, Any]:
+                         include_holidays: bool = False, model_mode: str = "fast",
+                         medicine_name: str = "") -> Dict[str, Any]:
         """
         Generate forecast using Prophet model with specified mode
+        All modes now support smart medical holidays when enabled
         """
         try:
             # Convert historical data to time series format like original
@@ -656,17 +802,29 @@ class ForecastingModel:
             # Initialize error metrics
             rmse, mae, mape = None, None, None
             
-            # Add holidays if requested - EXACT SAME AS ORIGINAL
+            # NEW: Smart holiday handling for ALL modes
             holidays = None
-            if include_holidays:
-                holidays = pd.DataFrame({
-                    'holiday': 'Christmas',
-                    'ds': pd.to_datetime(['2023-12-25', '2024-12-25', '2025-12-25']),
-                    'lower_window': -1,
-                    'upper_window': 1,
-                })
+            medical_insights = None
             
-            # Choose model evaluation method based on selected mode - EXACT SAME AS ORIGINAL
+            if include_holidays:
+                # Get medicine category and smart holidays for ALL modes
+                category, safety_multiplier, category_description = self._categorize_medicine(medicine_id, medicine_name)
+                holidays = self._get_relevant_holidays(category)
+                
+                # Store medical insights for later use (available for all modes now)
+                medical_insights = {
+                    'category': category,
+                    'safety_multiplier': safety_multiplier,
+                    'category_description': category_description,
+                    'relevant_holidays': len(holidays),
+                    'holiday_names': holidays['holiday'].unique().tolist() if not holidays.empty else []
+                }
+                
+                print(f"Medical category: {category_description}")
+                print(f"Safety multiplier: {safety_multiplier}x")
+                print(f"Smart holidays: {len(holidays)} medical seasons")
+            
+            # Choose model evaluation method based on selected mode
             if model_mode == "fast":
                 # Fast mode - skip complex cross-validation
                 prophet_model, best_params, _ = self.evaluate_prophet_model_fast(ts, holidays=holidays)
@@ -679,6 +837,10 @@ class ForecastingModel:
                 # Comprehensive mode - full parameter tuning and cross-validation
                 prophet_model, best_params, _ = self.evaluate_prophet_model_comprehensive(ts, holidays=holidays)
                 model_description = "Comprehensive (Full Optimization)"
+            
+            # Add medical description if medical insights are available
+            if medical_insights:
+                model_description += f" + Medical Intelligence ({medical_insights['category_description']})"
             
             if prophet_model is None:
                 raise ValueError("Failed to create valid Prophet model")
@@ -777,11 +939,48 @@ class ForecastingModel:
             total_forecast = forecast_mean.sum()
             avg_monthly = forecast_mean.mean()
             
-            # Inventory recommendations - EXACT SAME AS ORIGINAL
-            safety_factor = 1.65  # ~95% service level
-            forecast_std = (forecast_upper - forecast_lower) / 3.92  # Approximation for 95% CI
-            avg_std = forecast_std.mean()
-            safety_stock = safety_factor * avg_std
+            # Enhanced safety stock calculation when medical insights are available
+            if medical_insights:
+                # Smart safety stock calculation using medical intelligence
+                forecast_std = (forecast_upper - forecast_lower) / 3.92  # Approximation for 95% CI
+                avg_std = forecast_std.mean()
+                
+                safety_stock_info = self._calculate_smart_safety_stock(
+                    avg_std, 
+                    medical_insights['category'], 
+                    medical_insights['safety_multiplier']
+                )
+                
+                safety_stock = safety_stock_info['smart_safety_stock']
+                service_level = safety_stock_info['service_level']
+                
+                # Enhanced recommendations with medical intelligence
+                recommendations = {
+                    'safety_stock': safety_stock,
+                    'standard_safety_stock': safety_stock_info['standard_safety_stock'],
+                    'additional_safety_units': safety_stock_info['additional_safety_units'],
+                    'reorder_point': round(avg_monthly + safety_stock, 2),
+                    'max_stock_level': round((avg_monthly + safety_stock) * 2, 2),
+                    'lead_time_months': 1,
+                    'service_level': service_level,
+                    'review_frequency': safety_stock_info['review_frequency'],
+                    'max_stockout_risk': safety_stock_info['max_stockout_risk'],
+                    'procurement_urgency': 'High' if medical_insights['category'] == 'emergency' else 'Medium'
+                }
+                
+            else:
+                # Original safety stock calculation for modes without holidays
+                safety_factor = 1.65  # ~95% service level
+                forecast_std = (forecast_upper - forecast_lower) / 3.92  # Approximation for 95% CI
+                avg_std = forecast_std.mean()
+                safety_stock = safety_factor * avg_std
+                
+                recommendations = {
+                    'safety_stock': round(safety_stock, 2),
+                    'reorder_point': round(avg_monthly + safety_stock, 2),
+                    'lead_time_months': 1,
+                    'service_level': '95%'
+                }
             
             # Create results dictionary
             metrics = {}
@@ -804,7 +1003,8 @@ class ForecastingModel:
                     "sensitivity_analysis": sensitivity_analysis_results if sensitivity_analysis_results else None
                 }
             
-            return {
+            # Base result structure (same as original)
+            result = {
                 'success': True,
                 'unit_id': unit_id,
                 'medicine_id': medicine_id,
@@ -822,15 +1022,16 @@ class ForecastingModel:
                     'data_points': len(df),
                     'forecast_period': periods
                 },
-                'recommendations': {
-                    'safety_stock': round(safety_stock, 2),
-                    'reorder_point': round(avg_monthly + safety_stock, 2),
-                    'lead_time_months': 1,
-                    'service_level': '95%'
-                },
+                'recommendations': recommendations,
                 'metrics': metrics,
                 'validation': validation_results if validation_results else None
             }
+            
+            # Add medical insights if medical intelligence was used
+            if medical_insights:
+                result['medical_insights'] = medical_insights
+            
+            return result
             
         except Exception as e:
             logger.error(f"Prophet forecast generation failed: {str(e)}")

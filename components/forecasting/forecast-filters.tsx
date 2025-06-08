@@ -257,8 +257,8 @@ export function ForecastFilters({ onForecastGenerated }: ForecastFiltersProps) {
                   />
                 </div>
               </div>
-              <Command className="overflow-hidden rounded-none">
-                <CommandGroup className="max-h-64">
+              <Command className="rounded-none">
+                <CommandGroup className="max-h-64 overflow-y-auto">
                   {filteredUnits.length > 0 ? (
                     filteredUnits.map((unit) => (
                       <CommandItem
@@ -314,8 +314,8 @@ export function ForecastFilters({ onForecastGenerated }: ForecastFiltersProps) {
                   />
                 </div>
               </div>
-              <Command className="overflow-hidden rounded-none">
-                <CommandGroup className="max-h-64">
+              <Command className="rounded-none">
+                <CommandGroup className="max-h-64 overflow-y-auto">
                   {filteredMedicines.length > 0 ? (
                     filteredMedicines.map((medicine) => (
                       <CommandItem

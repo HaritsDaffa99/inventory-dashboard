@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import uvicorn
 from models.forecasting import ForecastingModel
+from routes.disease_outbreak_routes import router as disease_outbreak_router  # ADD THIS
 import logging
 
 # Set up logging
@@ -12,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Medicine Forecasting API",
-    description="Prophet-based forecasting with Fast, Enhanced, and Comprehensive modes",
+    description="Prophet-based forecasting with Medicine Demand and Disease Outbreak prediction",  # UPDATED
     version="1.0.0"
 )
 
@@ -24,6 +25,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include disease outbreak routes  # ADD THIS
+app.include_router(disease_outbreak_router)
 
 # Initialize forecasting model
 forecasting_model = ForecastingModel()
@@ -59,11 +63,12 @@ class ForecastResponse(BaseModel):
 async def root():
     """Root endpoint"""
     return {
-        "message": "Medicine Forecasting API - Prophet Multi-Mode",
+        "message": "Medicine Forecasting API - Prophet Multi-Mode + Disease Outbreak Prediction",  # UPDATED
         "version": "1.0.0",
         "status": "operational",
         "model": "Facebook Prophet",
-        "modes": ["fast", "enhanced", "comprehensive"]
+        "modes": ["fast", "enhanced", "comprehensive"],
+        "services": ["medicine-demand-forecasting", "disease-outbreak-prediction"]  # ADD THIS
     }
 
 @app.get("/health")
@@ -73,6 +78,7 @@ async def health_check():
         "status": "healthy",
         "model": "Prophet",
         "modes": ["fast", "enhanced", "comprehensive"],
+        "services": ["medicine-demand", "disease-outbreak"],  # ADD THIS
         "version": "1.0.0"
     }
 

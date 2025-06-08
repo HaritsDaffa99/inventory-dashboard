@@ -56,7 +56,7 @@ function createPrompt(forecastResult: ForecastResult, currentStock: number): str
 
   // Create prompt with structured data
   return `
-You are an inventory management expert working for a healthcare facility. Please analyze this pharmaceutical inventory data and generate formal, professional recommendations.
+You are an inventory management expert working for a healthcare facility. Please analyze this pharmaceutical inventory data and generate detailed, professional recommendations that healthcare staff can easily understand and implement.
 
 ## Current Information
 - Item: Medicine ID ${medicine_id}
@@ -86,27 +86,39 @@ ${metrics ? `
 - Test Data: ${metrics.test_size} months
 ` : 'No metrics available'}
 
-Based on this information, please provide:
+Based on this comprehensive analysis, please provide detailed insights that healthcare staff can easily understand and act upon:
 
-1. Executive Summary: A concise overview of the inventory situation, highlighting key insights and potential challenges or opportunities. Make this highly readable for healthcare administrators.
+1. **Executive Summary**: Provide a detailed overview (3-4 sentences) of the inventory situation. Include specific numbers from the forecast, explain the trend (increasing/decreasing/stable), compare current stock vs forecasted needs, and highlight the most critical actions needed. Make it clear and actionable for healthcare administrators.
 
-2. Stock Recommendations: Specific suggestions for safety stock levels, reorder points, and order quantities. Include numerical recommendations supported by data analysis. Explain if current safety stock and reorder point values should be adjusted.
+2. **Stock Recommendations**: Provide 4-6 detailed recommendations with specific calculations and reasoning. Include:
+   - Analysis of current safety stock adequacy with calculations
+   - Recommended reorder point adjustments with reasoning
+   - Optimal order quantities based on forecast data
+   - Emergency stock considerations
+   - Each recommendation should include the "why" with numbers from the forecast
 
-3. Monthly Inventory Plan: A month-by-month breakdown of recommended actions for the forecasted period.
+3. **Monthly Stock Requirements**: For each forecasted month, provide:
+   - Recommended stock level to maintain at the beginning of the month
+   - Expected consumption for that month (from forecast)
+   - Suggested ordering actions if needed
+   - Calculate running stock levels and identify when orders should be placed
+   - Include buffer considerations for each month
 
-4. Cost Implications: Analysis of potential cost savings or expenditures based on your recommendations.
+4. **Risk Factors**: Identify 3-4 specific risks with detailed explanations:
+   - Model accuracy concerns based on RMSE/MAE values
+   - Supply chain vulnerabilities specific to the forecast period
+   - Demand variability risks with confidence interval analysis
+   - Lead time and seasonality considerations
+   - Each risk should include mitigation strategies
 
-5. Risk Factors: Identification of potential risks in the supply chain or demand patterns that could affect inventory management.
-
-Present your analysis in a formal report style suitable for healthcare administration. Use clear, concise language and focus on actionable insights rather than general statements. Include specific numbers and percentages where relevant.
+Make all explanations clear for healthcare staff who may not be inventory experts. Use specific numbers from the forecast data to support every recommendation. Avoid generic advice - everything should be tailored to this specific medicine and forecast.
 
 Format your response with the following JSON structure:
 {
-  "executiveSummary": "Your concise summary here...",
-  "stockRecommendations": ["Recommendation 1", "Recommendation 2", ...],
-  "monthlyPlan": [{"month": "June 2025", "recommendation": "Action for this month"}, ...],
-  "costImplications": ["Cost implication 1", "Cost implication 2", ...],
-  "riskFactors": ["Risk factor 1", "Risk factor 2", ...]
+  "executiveSummary": "Your detailed summary with specific numbers and trends...",
+  "stockRecommendations": ["Detailed recommendation 1 with calculations", "Detailed recommendation 2 with reasoning", ...],
+  "monthlyStockPlan": [{"month": "June 2025", "recommendedStock": "Stock level needed", "expectedUsage": "Forecasted consumption", "orderAction": "Specific ordering action"}, ...],
+  "riskFactors": ["Detailed risk factor 1 with mitigation", "Detailed risk factor 2 with analysis", ...]
 }
 `;
 }
@@ -129,12 +141,9 @@ function processResponse(text: string): ForecastInsights {
       stockRecommendations: Array.isArray(data.stockRecommendations) 
         ? data.stockRecommendations 
         : ["No recommendations available"],
-      monthlyPlan: Array.isArray(data.monthlyPlan) 
-        ? data.monthlyPlan 
-        : [{ month: "No data", recommendation: "No recommendations available" }],
-      costImplications: Array.isArray(data.costImplications) 
-        ? data.costImplications 
-        : ["No cost implications available"],
+      monthlyStockPlan: Array.isArray(data.monthlyStockPlan) 
+        ? data.monthlyStockPlan 
+        : [{ month: "No data", recommendedStock: "N/A", expectedUsage: "N/A", orderAction: "No recommendations available" }],
       riskFactors: Array.isArray(data.riskFactors) 
         ? data.riskFactors 
         : ["No risk factors identified"],
@@ -146,8 +155,7 @@ function processResponse(text: string): ForecastInsights {
     return {
       executiveSummary: "Error processing AI insights. Please try again.",
       stockRecommendations: ["Error processing recommendations"],
-      monthlyPlan: [{ month: "Error", recommendation: "Could not generate monthly plan" }],
-      costImplications: ["Error processing cost implications"],
+      monthlyStockPlan: [{ month: "Error", recommendedStock: "N/A", expectedUsage: "N/A", orderAction: "Could not generate monthly plan" }],
       riskFactors: ["Error processing risk factors"],
     };
   }

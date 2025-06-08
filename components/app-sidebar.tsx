@@ -9,7 +9,7 @@ const menuItems = [
   { name: "Dashboard", icon: LayoutGrid, href: "/dashboard" },
   { name: "Map", icon: Map, href: "/dashboard/map" },
   { name: "Stock Forecast", icon: BarChart2, href: "/dashboard/forecasting" },
-  { name: "Disease Trend", icon: Activity, href: "/disease-trend" },
+  { name: "Disease Trend", icon: Activity, href: "/dashboard/disease-outbreak" },
 ];
 
 const settingsItems = [

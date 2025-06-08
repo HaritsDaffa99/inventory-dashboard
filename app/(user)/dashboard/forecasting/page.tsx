@@ -33,12 +33,12 @@ export default function ForecastingPage() {
 
       {/* Results */}
       {forecastResult && forecastResult.success && (
-        <div className="space-y-8 overflow-hidden">
+        <div className="space-y-8  ">
           {/* Metrics Cards */}
           <ForecastMetrics forecastResult={forecastResult} />
 
           {/* Chart */}
-          <div className="overflow-hidden">
+          <div className="">
             <ForecastChart forecastResult={forecastResult} />
           </div>
           
@@ -48,7 +48,7 @@ export default function ForecastingPage() {
           {/* Detailed Table */}
           <ForecastTable forecastResult={forecastResult} />
         </div>
-      )}
+      )} 
     </div>
   )
 }
