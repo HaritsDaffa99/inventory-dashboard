@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     // Group by month and calculate monthly usage
     const monthlyUsage = new Map<string, number>()
 
-    historicalData.forEach((record) => {
+    historicalData.forEach((record: typeof historicalData[0]) => {
       const month = record.pengeluaran.tanggalSah.toISOString().substring(0, 7) // YYYY-MM
       const currentUsage = monthlyUsage.get(month) || 0
       monthlyUsage.set(month, currentUsage + record.banyak)
