@@ -2,10 +2,16 @@
 
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Activity, ChevronRight, Pill, Stethoscope, Syringe, Thermometer, Clipboard, HeartPulse } from 'lucide-react';
 
 export default function Hero() {
   const router = useRouter();
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const floatingIcons = [
     { Icon: Pill, size: 24, position: "top-32 right-24" },
@@ -98,8 +104,8 @@ export default function Hero() {
               <div className="h-full w-full rounded-full bg-yellow-300/50" />
             </motion.div>
 
-            {/* Additional Floating Elements */}
-            {floatingIcons.map((item, index) => (
+            {/* Additional Floating Elements - Only render on client */}
+            {isClient && floatingIcons.map((item, index) => (
               <motion.div
                 key={index}
                 className={`absolute ${item.position}`}
@@ -131,8 +137,8 @@ export default function Hero() {
               </motion.div>
             ))}
 
-            {/* Decorative Circles */}
-            {[...Array(3)].map((_, index) => (
+            {/* Decorative Circles - Only render on client */}
+            {isClient && [...Array(3)].map((_, index) => (
               <motion.div
                 key={`circle-${index}`}
                 className={`absolute ${
@@ -177,4 +183,3 @@ export default function Hero() {
     </div>
   );
 }
-

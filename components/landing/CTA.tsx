@@ -2,10 +2,16 @@
 
 import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { ArrowRight, Activity, Pill, Stethoscope } from 'lucide-react'
 
 export default function CTA() {
   const router = useRouter()
+  const [isClient, setIsClient] = useState(false)
+
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
   return (
     <section className="relative overflow-hidden bg-[#00B9AD] py-32">
@@ -35,15 +41,16 @@ export default function CTA() {
           }}
         />
 
-        {/* Floating Medical Icons */}
-        {[Activity, Pill, Stethoscope].map((Icon, index) => (
+        {/* Floating Medical Icons - Only render on client */}
+        {isClient && [Activity, Pill, Stethoscope].map((Icon, index) => (
           <motion.div
             key={index}
             className="absolute text-white/5"
-            initial={{ y: 0 }}
+            initial={{ y: 0, opacity: 0 }}
             animate={{
               y: [-20, 20, -20],
               x: [-10, 10, -10],
+              opacity: 1,
             }}
             transition={{
               duration: 5 + index,
@@ -61,8 +68,8 @@ export default function CTA() {
           </motion.div>
         ))}
 
-        {/* Animated Circles */}
-        {[...Array(5)].map((_, index) => (
+        {/* Animated Circles - Only render on client */}
+        {isClient && [...Array(5)].map((_, index) => (
           <motion.div
             key={`circle-${index}`}
             className="absolute rounded-full bg-white/5"
@@ -121,19 +128,11 @@ export default function CTA() {
             className="inline-block"
           >
             <button
-              onClick={() => router.push('/register')}
-              className="group relative overflow-hidden rounded-full bg-yellow-300 px-8 py-4 text-lg font-semibold text-gray-900 transition-colors hover:bg-yellow-400"
+              onClick={() => router.push("/login")}
+              className="group flex items-center space-x-2 rounded-full bg-yellow-300 px-8 py-4 text-lg font-semibold text-gray-900 hover:bg-yellow-400 transition-colors"
             >
-              <motion.span
-                className="absolute inset-0 bg-white/20"
-                initial={{ x: '-100%' }}
-                whileHover={{ x: '100%' }}
-                transition={{ duration: 0.5 }}
-              />
-              <span className="relative flex items-center gap-2">
-                Sign Up Now
-                <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
-              </span>
+              <span>Start Your Journey</span>
+              <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
             </button>
           </motion.div>
         </motion.div>
@@ -141,4 +140,3 @@ export default function CTA() {
     </section>
   )
 }
-
