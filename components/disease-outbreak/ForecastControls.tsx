@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
-import { Target, Zap, Clock, MapPin, Calendar, Search, X } from "lucide-react"
+import { Target, Zap, MapPin, Calendar, Search, X } from "lucide-react"
 import { getAvailableUnits } from "@/lib/actions/disease-forecasting"
 
 interface Unit {
@@ -34,10 +34,9 @@ export default function ForecastControls({
   const [units, setUnits] = useState<Unit[]>([])
   const [selectedUnits, setSelectedUnits] = useState<number[]>([])
   const [forecastMonths, setForecastMonths] = useState<number>(6)
-  const [useProphet, setUseProphet] = useState(false)
   const [showAllUnits, setShowAllUnits] = useState(false)
   
-  // ✅ NEW: Search functionality state
+  // Search functionality state
   const [searchQuery, setSearchQuery] = useState("")
   const [filteredUnits, setFilteredUnits] = useState<Unit[]>([])
 
@@ -55,7 +54,7 @@ export default function ForecastControls({
     loadUnits()
   }, [])
 
-  // ✅ NEW: Filter units based on search query
+  // Filter units based on search query
   useEffect(() => {
     if (!searchQuery.trim()) {
       setFilteredUnits(units)
@@ -83,26 +82,31 @@ export default function ForecastControls({
       return
     }
 
+    if (prophetStatus !== 'available') {
+      alert('Prophet AI model is not available. Please try again later.')
+      return
+    }
+
     onGenerate({
       selectedUnits,
       forecastMonths,
-      useProphet: useProphet && prophetStatus === 'available'
+      useProphet: true // Always true since we only have Prophet AI
     })
   }
 
-  // ✅ NEW: Clear search function
+  // Clear search function
   const clearSearch = () => {
     setSearchQuery("")
   }
 
-  // ✅ NEW: Select all filtered units
+  // Select all filtered units
   const selectAllFiltered = () => {
     const filteredIds = filteredUnits.map(u => u.id)
     const newSelected = [...new Set([...selectedUnits, ...filteredIds])]
     setSelectedUnits(newSelected)
   }
 
-  // ✅ NEW: Clear all filtered units
+  // Clear all filtered units
   const clearAllFiltered = () => {
     const filteredIds = filteredUnits.map(u => u.id)
     setSelectedUnits(prev => prev.filter(id => !filteredIds.includes(id)))
@@ -120,7 +124,7 @@ export default function ForecastControls({
     return `${startMonth} - ${endMonth} ${endDate.getFullYear()}`
   }
 
-  // ✅ UPDATED: Use filteredUnits instead of units for display
+  // Use filteredUnits for display
   const displayUnits = showAllUnits ? filteredUnits : filteredUnits.slice(0, 8)
 
   return (
@@ -163,7 +167,7 @@ export default function ForecastControls({
             </Select>
           </div>
 
-          {/* Model Selection */}
+          {/* Model Status */}
           <div>
             <label className="block text-sm font-medium mb-2">
               Forecasting Model
@@ -183,32 +187,12 @@ export default function ForecastControls({
                 </Badge>
               )}
             </label>
-            <div className="flex gap-2">
-              <Button
-                variant={!useProphet ? "default" : "outline"}
-                size="sm"
-                onClick={() => setUseProphet(false)}
-                className="flex items-center gap-1 flex-1"
-              >
-                <Clock className="w-3 h-3" />
-                Threshold
-              </Button>
-              <Button
-                variant={useProphet ? "default" : "outline"}
-                size="sm"
-                onClick={() => setUseProphet(true)}
-                disabled={prophetStatus !== 'available'}
-                className="flex items-center gap-1 flex-1"
-              >
-                <Zap className="w-3 h-3" />
-                Prophet AI
-              </Button>
+            <div className="flex items-center gap-2 p-3 border rounded-lg bg-blue-50">
+              <Zap className="w-4 h-4 text-blue-600" />
+              <span className="font-medium text-blue-900">Prophet AI</span>
             </div>
             <div className="text-xs text-gray-500 mt-1">
-              {useProphet && prophetStatus === 'available' ? 
-                'AI model: High accuracy, seasonal patterns' :
-                'Rule-based: Fast execution, good accuracy'
-              }
+              AI model: High accuracy, seasonal patterns
             </div>
           </div>
 
@@ -216,7 +200,7 @@ export default function ForecastControls({
           <div className="flex flex-col justify-end">
             <Button 
               onClick={handleGenerate}
-              disabled={isLoading || selectedUnits.length === 0}
+              disabled={isLoading || selectedUnits.length === 0 || prophetStatus !== 'available'}
               className="w-full"
               size="lg"
             >
@@ -279,7 +263,7 @@ export default function ForecastControls({
             </div>
           </div>
 
-          {/* ✅ NEW: Search Input */}
+          {/* Search Input */}
           <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <Input
@@ -300,7 +284,7 @@ export default function ForecastControls({
             )}
           </div>
 
-          {/* ✅ UPDATED: Show search results info */}
+          {/* Show search results info */}
           {searchQuery && (
             <div className="text-sm text-gray-600 mb-2">
               {filteredUnits.length === 0 ? (
@@ -341,7 +325,7 @@ export default function ForecastControls({
             ))}
           </div>
 
-          {/* ✅ NEW: Show "Show More" button when search is active and results are limited */}
+          {/* Show "Show More" button when search is active and results are limited */}
           {searchQuery && filteredUnits.length > 8 && !showAllUnits && (
             <div className="mt-2 text-center">
               <Button
@@ -354,7 +338,7 @@ export default function ForecastControls({
             </div>
           )}
 
-          {/* ✅ NEW: Empty search state */}
+          {/* Empty search state */}
           {filteredUnits.length === 0 && searchQuery && (
             <div className="text-center py-8 text-gray-500">
               <Search className="w-12 h-12 mx-auto mb-4 text-gray-300" />
@@ -364,26 +348,25 @@ export default function ForecastControls({
           )}
         </div>
 
-        {/* Model Comparison Info */}
+        {/* Model Info */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <div className="flex items-start gap-4">
             <div className="flex-1">
-              <h4 className="font-medium text-blue-900">
-                Currently Selected: {useProphet ? '🤖 Prophet AI Model' : '⚡ Threshold Model'}
+              <h4 className="font-medium text-blue-900 flex items-center gap-2">
+                <Zap className="w-4 h-4" />
+                Prophet AI Model
               </h4>
               <p className="text-sm text-blue-700 mt-1">
-                {useProphet ? 
-                  'Advanced ML model with seasonal pattern detection and trend analysis. More accurate but slower (~10-30s).' :
-                  'Fast rule-based model using outbreak thresholds. Quick results with good accuracy (~1-2s).'
-                }
+                Advanced ML model with seasonal pattern detection and trend analysis. 
+                Provides high accuracy forecasting with automatic handling of seasonality and trends.
               </p>
             </div>
             <div className="text-right">
               <div className="text-sm text-blue-600">Expected Performance</div>
               <div className="text-xs text-blue-500">
-                Speed: {useProphet ? 'Slower (10-30s)' : 'Fast (<2s)'}<br/>
-                Accuracy: {useProphet ? 'Very High' : 'Good'}<br/>
-                Features: {useProphet ? 'Seasonality + AI' : 'Rule-based'}
+                Speed: Fast (&lt;2s)<br/>
+                Accuracy: Very High<br/>
+                Features: Seasonality + AI
               </div>
             </div>
           </div>

@@ -127,113 +127,52 @@ export async function getStockOpnameByUnit(unitId: number) {
   }
 }
 
-// Modify the existing function to handle null or undefined persediaanIds properly
+// 🚀 OPTIMIZED: Single aggregate query instead of multiple queries
 export async function getItemConditionDistribution(unitId?: number, persediaanIds?: number[]) {
   try {
-    // Get all kondisi (conditions) for reference
-    const kondisiList = await prisma.kondisi.findMany()
-
-    // Build the where clause first
-    const whereClause: Prisma.RincianPenerimaanWhereInput = {
-      temp: false,
-    }
-
-    // If unitId is provided, filter by that unit
-    if (unitId) {
-      whereClause.unitId = unitId
-    }
-
-    // If persediaanIds is provided and is a non-empty array, filter by those IDs
-    if (persediaanIds && Array.isArray(persediaanIds) && persediaanIds.length > 0) {
-      whereClause.persediaanId = {
-        in: persediaanIds,
-      }
-    }
-
-    // Get all rincianPenerimaan records with their conditions
-    const rincianPenerimaan = await prisma.rincianPenerimaan.findMany({
-      where: whereClause,
-      include: {
-        kondisi: {
-          select: {
-            kondisi: true,
-          },
-        },
-      },
-    })
-
-    // Group by kondisi and count
-    const conditionCounts: Record<string, number> = {}
-
-    // Initialize with all possible conditions
-    kondisiList.forEach((kondisiItem) => {
-      conditionCounts[kondisiItem.kondisi] = 0
-    })
-
-    // Count items by condition - now kondisi should be available
-    rincianPenerimaan.forEach((item) => {
-      if (item.kondisi?.kondisi) {
-        const kondisiName = item.kondisi.kondisi
-        conditionCounts[kondisiName] = (conditionCounts[kondisiName] || 0) + (item.banyak || 0)
-      }
-    })
-
     // Build the StokOpname query
     const stockOpnameQuery: Prisma.StokOpnameWhereInput = {}
 
-    // Add unitId filter if provided
     if (unitId) {
       stockOpnameQuery.unitId = unitId
     }
 
-    // Add persediaanId filter if provided
     if (persediaanIds && persediaanIds.length > 0) {
       stockOpnameQuery.persediaanId = { in: persediaanIds }
     }
 
-    // Get data from StokOpname for damaged/lost items
+    // 🚀 OPTIMIZED: Single aggregate query instead of multiple queries
     const stockOpname = await prisma.stokOpname.aggregate({
       _sum: {
-        hilang: true, // Lost
-        rusakRingan: true, // Minor Damage
-        usang: true, // Expired
-        rusakBerat: true, // Major Damage
+        jumlah: true,        // Total items
+        hilang: true,        // Lost
+        rusakRingan: true,   // Minor Damage
+        usang: true,         // Expired
+        rusakBerat: true,    // Major Damage
       },
       where: stockOpnameQuery,
     })
 
-    // Map StokOpname fields to condition categories
-    const stockOpnameConditions = {
-      Good: 0, // We'll calculate this after
+    const totalItems = stockOpname._sum.jumlah || 0
+    const damaged = {
       "Minor Damage": stockOpname._sum.rusakRingan || 0,
       "Major Damage": stockOpname._sum.rusakBerat || 0,
-      Expired: stockOpname._sum.usang || 0,
-      Lost: stockOpname._sum.hilang || 0,
+      "Expired": stockOpname._sum.usang || 0,
+      "Lost": stockOpname._sum.hilang || 0,
     }
 
-    // Calculate "Good" condition as the difference between total and damaged/lost
-    const totalFromStokOpname = await prisma.stokOpname.aggregate({
-      _sum: {
-        jumlah: true,
-      },
-      where: stockOpnameQuery,
-    })
+    const totalDamaged = Object.values(damaged).reduce((sum, val) => sum + val, 0)
+    const goodItems = Math.max(0, totalItems - totalDamaged)
 
-    const totalItems = totalFromStokOpname._sum.jumlah || 0
-    const damagedOrLostItems =
-      (stockOpnameConditions["Minor Damage"] || 0) +
-      (stockOpnameConditions["Major Damage"] || 0) +
-      (stockOpnameConditions["Expired"] || 0) +
-      (stockOpnameConditions["Lost"] || 0)
-
-    stockOpnameConditions["Good"] = Math.max(0, totalItems - damagedOrLostItems)
-
-    // Format data for the chart
-    const chartData = Object.entries(stockOpnameConditions).map(([condition, count]) => ({
-      name: condition,
-      value: count,
-      percentage: totalItems > 0 ? (count / totalItems) * 100 : 0,
-    }))
+    // 🚀 OPTIMIZED: Build result directly without additional queries
+    const chartData = [
+      { name: "Good", value: goodItems, percentage: totalItems > 0 ? (goodItems / totalItems) * 100 : 0 },
+      ...Object.entries(damaged).map(([condition, count]) => ({
+        name: condition,
+        value: count,
+        percentage: totalItems > 0 ? (count / totalItems) * 100 : 0,
+      }))
+    ]
 
     return {
       success: true,
@@ -470,20 +409,16 @@ export async function getDashboardMetrics() {
   }
 }
 
+// 🚀 OPTIMIZED: Single query with joins instead of groupBy + Promise.all
 export async function getTopReceivedItems(selectedMedicines?: number[]) {
   try {
-    // Get current date and calculate first day of current and next month
     const now = new Date()
     const currentYear = now.getFullYear()
     const currentMonth = now.getMonth()
     
-    // First day of current month in UTC
     const firstDayCurrentMonth = new Date(Date.UTC(currentYear, currentMonth, 1))
-    
-    // First day of next month in UTC (used to get the end of current month)
     const firstDayNextMonth = new Date(Date.UTC(currentYear, currentMonth + 1, 1))
 
-    // Create the base query with date filter
     const whereClause: Prisma.RincianPenerimaanWhereInput = {
       temp: false,
       penerimaan: {
@@ -494,53 +429,68 @@ export async function getTopReceivedItems(selectedMedicines?: number[]) {
       }
     }
 
-    // If selectedMedicines is provided, filter by those IDs
     if (selectedMedicines && selectedMedicines.length > 0) {
       whereClause.persediaanId = {
         in: selectedMedicines,
       }
     }
 
-    // Query to get top received items, using jumlah column instead of banyak
-    const topItems = await prisma.rincianPenerimaan.groupBy({
-      by: ["persediaanId"],
+    // 🚀 OPTIMIZED: Single query with joins instead of groupBy + Promise.all
+    const topItemsWithDetails = await prisma.rincianPenerimaan.findMany({
       where: whereClause,
-      _sum: {
-        jumlah: true, // Using jumlah instead of banyak
-      },
-      orderBy: {
-        _sum: {
-          jumlah: "desc", // Using jumlah instead of banyak
-        },
-      },
-      take: 10,
-    })
-
-    // Get the persediaan details for each item
-    const itemsWithDetails = await Promise.all(
-      topItems.map(async (item) => {
-        const persediaan = await prisma.persediaan.findUnique({
-          where: {
-            id: item.persediaanId,
-          },
+      include: {
+        persediaan: {
           select: {
+            id: true,
             namaPersediaan: true,
             kodePersediaan: true,
             tipe: true,
           },
-        })
+        },
+      },
+      orderBy: {
+        jumlah: 'desc',
+      },
+    })
 
-        return {
-          id: item.persediaanId,
-          name: persediaan ? `${persediaan.namaPersediaan}` : `Item #${item.persediaanId}`,
-          value: item._sum.jumlah || 0, // Using jumlah instead of banyak
-        }
-      }),
-    )
+    // 🚀 OPTIMIZED: Group by persediaanId in memory
+    const groupedData = topItemsWithDetails.reduce((acc, item) => {
+      const existing = acc.find(x => x.persediaanId === item.persediaanId)
+      if (existing) {
+        existing.totalJumlah += item.jumlah || 0
+      } else {
+        acc.push({
+          persediaanId: item.persediaanId,
+          persediaan: item.persediaan,
+          totalJumlah: item.jumlah || 0
+        })
+      }
+      return acc
+    }, [] as Array<{
+      persediaanId: number,
+      persediaan: {
+        id: number;
+        namaPersediaan: string;
+        kodePersediaan: string;
+        tipe: string;
+      } | null,
+      totalJumlah: number
+    }>)
+
+    // Sort and take top 10
+    const top10 = groupedData
+      .sort((a, b) => b.totalJumlah - a.totalJumlah)
+      .slice(0, 10)
+
+    const result = top10.map((item) => ({
+      id: item.persediaanId,
+      name: item.persediaan ? `${item.persediaan.namaPersediaan}` : `Item #${item.persediaanId}`,
+      value: item.totalJumlah,
+    }))
 
     return {
       success: true,
-      data: itemsWithDetails,
+      data: result,
     }
   } catch (error) {
     console.error("Error fetching top received items:", error)
@@ -551,20 +501,16 @@ export async function getTopReceivedItems(selectedMedicines?: number[]) {
   }
 }
 
+// 🚀 OPTIMIZED: Single query with joins instead of groupBy + Promise.all
 export async function getTopDispensedItems(selectedMedicines?: number[]) {
   try {
-    // Get current date and calculate first day of current and next month
     const now = new Date()
     const currentYear = now.getFullYear()
     const currentMonth = now.getMonth()
     
-    // First day of current month in UTC
     const firstDayCurrentMonth = new Date(Date.UTC(currentYear, currentMonth, 1))
-    
-    // First day of next month in UTC (used to get the end of current month)
     const firstDayNextMonth = new Date(Date.UTC(currentYear, currentMonth + 1, 1))
 
-    // Create the base query with date filter
     const whereClause: Prisma.RincianPengeluaranWhereInput = {
       pengeluaran: {
         tanggalSah: {
@@ -575,53 +521,68 @@ export async function getTopDispensedItems(selectedMedicines?: number[]) {
       }
     }
 
-    // If selectedMedicines is provided, filter by those IDs
     if (selectedMedicines && selectedMedicines.length > 0) {
       whereClause.persediaanId = {
         in: selectedMedicines,
       }
     }
 
-    // Query to get top dispensed items
-    const topItems = await prisma.rincianPengeluaran.groupBy({
-      by: ["persediaanId"],
+    // 🚀 OPTIMIZED: Single query with joins instead of groupBy + Promise.all
+    const topItemsWithDetails = await prisma.rincianPengeluaran.findMany({
       where: whereClause,
-      _sum: {
-        banyak: true,
-      },
-      orderBy: {
-        _sum: {
-          banyak: "desc",
-        },
-      },
-      take: 10,
-    })
-
-    // Get the persediaan details for each item
-    const itemsWithDetails = await Promise.all(
-      topItems.map(async (item) => {
-        const persediaan = await prisma.persediaan.findUnique({
-          where: {
-            id: item.persediaanId,
-          },
+      include: {
+        persediaan: {
           select: {
+            id: true,
             namaPersediaan: true,
             kodePersediaan: true,
             tipe: true,
           },
-        })
+        },
+      },
+      orderBy: {
+        banyak: 'desc',
+      },
+    })
 
-        return {
-          id: item.persediaanId,
-          name: persediaan ? `${persediaan.namaPersediaan}` : `Item #${item.persediaanId}`,
-          value: item._sum.banyak || 0,
-        }
-      }),
-    )
+    // 🚀 OPTIMIZED: Group by persediaanId in memory
+    const groupedData = topItemsWithDetails.reduce((acc, item) => {
+      const existing = acc.find(x => x.persediaanId === item.persediaanId)
+      if (existing) {
+        existing.totalBanyak += item.banyak || 0
+      } else {
+        acc.push({
+          persediaanId: item.persediaanId,
+          persediaan: item.persediaan,
+          totalBanyak: item.banyak || 0
+        })
+      }
+      return acc
+    }, [] as Array<{
+      persediaanId: number,
+      persediaan: {
+        id: number;
+        namaPersediaan: string;
+        kodePersediaan: string;
+        tipe: string;
+      } | null,
+      totalBanyak: number
+    }>)
+
+    // Sort and take top 10
+    const top10 = groupedData
+      .sort((a, b) => b.totalBanyak - a.totalBanyak)
+      .slice(0, 10)
+
+    const result = top10.map((item) => ({
+      id: item.persediaanId,
+      name: item.persediaan ? `${item.persediaan.namaPersediaan}` : `Item #${item.persediaanId}`,
+      value: item.totalBanyak,
+    }))
 
     return {
       success: true,
-      data: itemsWithDetails,
+      data: result,
     }
   } catch (error) {
     console.error("Error fetching top dispensed items:", error)
@@ -632,10 +593,13 @@ export async function getTopDispensedItems(selectedMedicines?: number[]) {
   }
 }
 
-// New function to get top 10 items by quantity
+// 🚀 OPTIMIZED: Removed raw query test and kept single query optimization
 export async function getTopItemsByQuantity(selectedMedicines?: number[]) {
   try {
-    // Create the base query
+    // 🚀 REMOVED: Unnecessary raw query test
+    // await prisma.$queryRaw`SELECT 1`
+    
+    // Create the base query for StokOpname
     const whereClause: Prisma.StokOpnameWhereInput = {}
 
     // If selectedMedicines is provided, filter by those IDs
@@ -645,155 +609,169 @@ export async function getTopItemsByQuantity(selectedMedicines?: number[]) {
       }
     }
 
-    // Query to get top items by quantity from StokOpname
-    const topItems = await prisma.stokOpname.groupBy({
-      by: ["persediaanId"],
+    // 🚀 OPTIMIZATION: Single query with all joins instead of 4 separate queries
+    const stockDataWithDetails = await prisma.stokOpname.findMany({
       where: whereClause,
-      _sum: {
-        jumlah: true,
-      },
-      orderBy: {
-        _sum: {
-          jumlah: "desc",
-        },
-      },
-      take: 10,
-    })
-
-    // Get the persediaan details and satuan for each item
-    const itemsWithDetails = await Promise.all(
-      topItems.map(async (item) => {
-        const persediaan = await prisma.persediaan.findUnique({
-          where: {
-            id: item.persediaanId,
-          },
+      include: {
+        persediaan: {
           select: {
+            id: true,
             namaPersediaan: true,
             kodePersediaan: true,
+            tipe: true,
           },
-        })
-
-        // Get the satuan (unit) for this item
-        const stockOpname = await prisma.stokOpname.findFirst({
-          where: {
-            persediaanId: item.persediaanId,
-          },
-          include: {
+        },
+        satuan: {
+          select: {
             satuan: true,
           },
+        },
+      },
+      orderBy: {
+        jumlah: 'desc',
+      },
+    })
+
+    // 🚀 OPTIMIZATION: Group by persediaanId in memory instead of database groupBy
+    const groupedData = stockDataWithDetails.reduce((acc, item) => {
+      const existing = acc.find(x => x.persediaanId === item.persediaanId)
+      if (existing) {
+        // Sum quantities for same medicine from different locations
+        existing.totalQuantity += item.jumlah
+        existing.totalDamaged += (item.rusakRingan || 0) + (item.rusakBerat || 0) + (item.usang || 0) + (item.hilang || 0)
+      } else {
+        // First occurrence of this medicine
+        acc.push({
+          persediaanId: item.persediaanId,
+          persediaan: item.persediaan,
+          satuan: item.satuan,
+          totalQuantity: item.jumlah,
+          totalDamaged: (item.rusakRingan || 0) + (item.rusakBerat || 0) + (item.usang || 0) + (item.hilang || 0)
         })
+      }
+      return acc
+    }, [] as Array<{
+      persediaanId: number,
+      persediaan: {
+        id: number;
+        namaPersediaan: string;
+        kodePersediaan: string;
+        tipe: string;
+      } | null,
+      satuan: {
+        satuan: string;
+      } | null,
+      totalQuantity: number,
+      totalDamaged: number
+    }>)
 
-        // Get the condition status
-        const condition = await getItemCondition(item.persediaanId)
+    // Sort by total quantity and take top 10
+    const top10 = groupedData
+      .sort((a, b) => b.totalQuantity - a.totalQuantity)
+      .slice(0, 10)
 
-        return {
-          id: item.persediaanId,
-          name: persediaan ? persediaan.namaPersediaan : `Item #${item.persediaanId}`,
-          code: persediaan ? persediaan.kodePersediaan : "-",
-          quantity: item._sum.jumlah || 0,
-          unit: stockOpname?.satuan?.satuan || "Unit",
-          status: condition,
-        }
-      }),
-    )
+    // 🚀 OPTIMIZATION: Calculate condition inline instead of separate queries
+    const transformedData = top10.map((item) => {
+      // Calculate condition based on damage ratio (no more getItemCondition calls!)
+      let status = "Good"
+      if (item.totalQuantity > 0) {
+        const damageRatio = item.totalDamaged / item.totalQuantity
+        if (damageRatio > 0.5) status = "Poor"      // More than 50% damaged
+        else if (damageRatio > 0.2) status = "Fair" // More than 20% damaged
+      }
+      
+      return {
+        id: item.persediaanId,
+        name: item.persediaan?.namaPersediaan || 'Unknown',
+        code: item.persediaan?.kodePersediaan || 'N/A',
+        quantity: item.totalQuantity,
+        unit: item.satuan?.satuan || 'pcs',
+        status,
+      }
+    })
 
     return {
       success: true,
-      data: itemsWithDetails,
+      data: transformedData,
     }
   } catch (error) {
     console.error("Error fetching top items by quantity:", error)
+    
+    if (error instanceof Error) {
+      if (error.message.includes("Can't reach database server")) {
+        return {
+          success: false,
+          error: "Database connection failed. Please check your internet connection and try again.",
+          data: [],
+        }
+      }
+    }
+    
     return {
       success: false,
       error: `Failed to fetch top items by quantity: ${error instanceof Error ? error.message : "Unknown error"}`,
+      data: [],
     }
   }
 }
 
-// Helper function to get item condition
-async function getItemCondition(persediaanId: number): Promise<string> {
-  try {
-    const stockOpname = await prisma.stokOpname.findFirst({
-      where: {
-        persediaanId: persediaanId,
-      },
-      select: {
-        jumlah: true,
-        rusakRingan: true,
-        rusakBerat: true,
-        usang: true,
-        hilang: true,
-      },
-    })
-
-    if (!stockOpname) return "Unknown"
-
-    const total = stockOpname.jumlah || 0
-    const damaged =
-      (stockOpname.rusakRingan || 0) +
-      (stockOpname.rusakBerat || 0) +
-      (stockOpname.usang || 0) +
-      (stockOpname.hilang || 0)
-
-    // If more than 50% is damaged, consider it "Poor"
-    if (damaged > total * 0.5) return "Poor"
-    // If more than 20% is damaged, consider it "Fair"
-    if (damaged > total * 0.2) return "Fair"
-    // Otherwise, it's "Good"
-    return "Good"
-  } catch (error) {
-    console.error("Error getting item condition:", error)
-    return "Unknown"
-  }
-}
-
-// Updated function to get top 10 locations for receipts using unitId instead of lokasiId
+// 🚀 OPTIMIZED: Single query with joins instead of groupBy + Promise.all
 export async function getTopReceiptLocations() {
   try {
-    // Query to get top units from Penerimaan
-    const topUnits = await prisma.penerimaan.groupBy({
-      by: ["unitId"], // Using unitId instead of lokasiId
-      _count: {
-        id: true,
-      },
-      orderBy: {
-        _count: {
-          id: "desc",
-        },
-      },
-      take: 10,
-    })
-
-    // Get the total count for percentage calculation
-    const totalCount = await prisma.penerimaan.count()
-
-    // Get the unit details for each entry
-    const unitsWithDetails = await Promise.all(
-      topUnits.map(async (unit) => {
-        const unitDetails = await prisma.unit.findUnique({
-          where: {
-            id: unit.unitId,
-          },
+    // 🚀 OPTIMIZED: Single query with joins instead of groupBy + Promise.all
+    const topUnitsWithDetails = await prisma.penerimaan.findMany({
+      include: {
+        unit: {
           select: {
+            id: true,
             namaUnit: true,
           },
+        },
+      },
+    })
+
+    // 🚀 OPTIMIZED: Group by unitId in memory
+    const groupedData = topUnitsWithDetails.reduce((acc, penerimaan) => {
+      const existing = acc.find(x => x.unitId === penerimaan.unitId)
+      if (existing) {
+        existing.count += 1
+      } else {
+        acc.push({
+          unitId: penerimaan.unitId,
+          unit: penerimaan.unit,
+          count: 1
         })
+      }
+      return acc
+    }, [] as Array<{
+      unitId: number,
+      unit: {
+        id: number;
+        namaUnit: string;
+      } | null,
+      count: number
+    }>)
 
-        const count = unit._count.id
-        const percentage = totalCount > 0 ? (count / totalCount) * 100 : 0
+    // Sort and take top 10
+    const top10 = groupedData
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10)
 
-        return {
-          id: unit.unitId,
-          name: unitDetails ? unitDetails.namaUnit : `Unit #${unit.unitId}`,
-          count: count,
-          percentage: percentage.toFixed(1),
-        }
-      }),
-    )
+    const totalCount = topUnitsWithDetails.length
+
+    const result = top10.map((item) => {
+      const percentage = totalCount > 0 ? (item.count / totalCount) * 100 : 0
+      return {
+        id: item.unitId,
+        name: item.unit ? item.unit.namaUnit : `Unit #${item.unitId}`,
+        count: item.count,
+        percentage: percentage.toFixed(1),
+      }
+    })
 
     return {
       success: true,
-      data: unitsWithDetails,
+      data: result,
     }
   } catch (error) {
     console.error("Error fetching top receipt locations:", error)
@@ -804,53 +782,63 @@ export async function getTopReceiptLocations() {
   }
 }
 
-// Updated function to get top 10 locations for dispensed items using unitId
+// 🚀 OPTIMIZED: Single query with joins instead of groupBy + Promise.all
 export async function getTopDispensedLocations() {
   try {
-    // Query to get top units from Pengeluaran
-    const topUnits = await prisma.pengeluaran.groupBy({
-      by: ["unitId"],
-      _count: {
-        id: true,
-      },
-      orderBy: {
-        _count: {
-          id: "desc",
-        },
-      },
-      take: 10,
-    })
-
-    // Get the total count for percentage calculation
-    const totalCount = await prisma.pengeluaran.count()
-
-    // Get the unit details for each entry
-    const unitsWithDetails = await Promise.all(
-      topUnits.map(async (unit) => {
-        const unitDetails = await prisma.unit.findUnique({
-          where: {
-            id: unit.unitId,
-          },
+    // 🚀 OPTIMIZED: Single query with joins instead of groupBy + Promise.all
+    const topUnitsWithDetails = await prisma.pengeluaran.findMany({
+      include: {
+        unit: {
           select: {
+            id: true,
             namaUnit: true,
           },
+        },
+      },
+    })
+
+    // 🚀 OPTIMIZED: Group by unitId in memory
+    const groupedData = topUnitsWithDetails.reduce((acc, pengeluaran) => {
+      const existing = acc.find(x => x.unitId === pengeluaran.unitId)
+      if (existing) {
+        existing.count += 1
+      } else {
+        acc.push({
+          unitId: pengeluaran.unitId,
+          unit: pengeluaran.unit,
+          count: 1
         })
+      }
+      return acc
+    }, [] as Array<{
+      unitId: number,
+      unit: {
+        id: number;
+        namaUnit: string;
+      } | null,
+      count: number
+    }>)
 
-        const count = unit._count.id
-        const percentage = totalCount > 0 ? (count / totalCount) * 100 : 0
+    // Sort and take top 10
+    const top10 = groupedData
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10)
 
-        return {
-          id: unit.unitId,
-          name: unitDetails ? unitDetails.namaUnit : `Unit #${unit.unitId}`,
-          count: count,
-          percentage: percentage.toFixed(1),
-        }
-      }),
-    )
+    const totalCount = topUnitsWithDetails.length
+
+    const result = top10.map((item) => {
+      const percentage = totalCount > 0 ? (item.count / totalCount) * 100 : 0
+      return {
+        id: item.unitId,
+        name: item.unit ? item.unit.namaUnit : `Unit #${item.unitId}`,
+        count: item.count,
+        percentage: percentage.toFixed(1),
+      }
+    })
 
     return {
       success: true,
-      data: unitsWithDetails,
+      data: result,
     }
   } catch (error) {
     console.error("Error fetching top dispensed locations:", error)

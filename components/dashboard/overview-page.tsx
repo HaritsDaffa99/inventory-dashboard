@@ -164,11 +164,10 @@ export function OverviewPage() {
 
         <TablesSection selectedMedicines={selectedMedicines} />
         
-        {/* Add AI Insights Panel with transformed metrics */}
+        {/* 🚀 FIXED: Removed isLoading prop - AI now manages its own loading state */}
         <AIInsightsPanel
           metrics={transformedMetrics}
           selectedMedicines={selectedMedicines}
-          isLoading={isLoading || isPending}
         />
       </div>
     </div>

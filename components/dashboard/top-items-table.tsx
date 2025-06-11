@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
@@ -24,38 +24,165 @@ export function TopItemsTable({ selectedMedicines }: TopItemsTableProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
+  
+  // 🚀 IMPROVED: Use ref to track current request and enable proper cancellation
+  const currentRequestRef = useRef<{ cancelled: boolean } | null>(null)
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Fix hydration issues by only rendering after component is mounted
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  // Fetch data when selectedMedicines changes
+  // 🚀 IMPROVED: Better request cancellation when selectedMedicines changes
   useEffect(() => {
     if (!mounted) return
 
-    async function fetchData() {
+    // Cancel any existing request and timeout
+    if (currentRequestRef.current) {
+      currentRequestRef.current.cancelled = true
+    }
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current)
+      retryTimeoutRef.current = null
+    }
+
+    // Create new request tracker
+    const requestTracker = { cancelled: false }
+    currentRequestRef.current = requestTracker
+
+    async function fetchData(retryCount = 0) {
+      // Check if request was cancelled before starting
+      if (requestTracker.cancelled) return
+
       setIsLoading(true)
       setError(null)
+      
       try {
-        const response = await getTopItemsByQuantity(selectedMedicines.length > 0 ? selectedMedicines : undefined)
+        // Add a small delay for initial load to let connections stabilize
+        if (retryCount === 0) {
+          await new Promise(resolve => setTimeout(resolve, 100))
+        }
+
+        // Check if request was cancelled during delay
+        if (requestTracker.cancelled) return
+
+        const response = await getTopItemsByQuantity(
+          selectedMedicines.length > 0 ? selectedMedicines : undefined
+        )
+
+        // 🚀 CRITICAL: Check if request was cancelled after API call
+        if (requestTracker.cancelled) return
 
         if (response.success && response.data) {
           setItems(response.data)
         } else if (response.error) {
           console.error("Error fetching top items:", response.error)
+          
+          // Check if it's a connection error and retry
+          if (response.error.includes("Can't reach database server") && retryCount < 3) {
+            console.log(`Retrying connection... Attempt ${retryCount + 1}`)
+            
+            // 🚀 IMPROVED: Use ref for timeout to allow proper cleanup
+            retryTimeoutRef.current = setTimeout(() => {
+              if (!requestTracker.cancelled) {
+                fetchData(retryCount + 1)
+              }
+            }, 1000 * (retryCount + 1)) // Exponential backoff
+            return
+          }
+          
           setError(response.error)
         }
       } catch (error) {
+        // Check if request was cancelled during error handling
+        if (requestTracker.cancelled) return
+        
         console.error("Error fetching top items data:", error)
-        setError(`Failed to fetch data: ${error instanceof Error ? error.message : "Unknown error"}`)
+        const errorMessage = error instanceof Error ? error.message : "Unknown error"
+        
+        // Check if it's a connection error and retry
+        if (errorMessage.includes("Can't reach database server") && retryCount < 3) {
+          console.log(`Retrying connection... Attempt ${retryCount + 1}`)
+          
+          // 🚀 IMPROVED: Use ref for timeout to allow proper cleanup
+          retryTimeoutRef.current = setTimeout(() => {
+            if (!requestTracker.cancelled) {
+              fetchData(retryCount + 1)
+            }
+          }, 1000 * (retryCount + 1)) // Exponential backoff
+          return
+        }
+        
+        setError(`Failed to fetch data: ${errorMessage}`)
       } finally {
-        setIsLoading(false)
+        // Only update loading state if request wasn't cancelled
+        if (!requestTracker.cancelled) {
+          setIsLoading(false)
+        }
       }
     }
 
     fetchData()
+
+    // 🚀 IMPROVED: Cleanup function
+    return () => {
+      if (currentRequestRef.current) {
+        currentRequestRef.current.cancelled = true
+      }
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current)
+        retryTimeoutRef.current = null
+      }
+    }
   }, [selectedMedicines, mounted])
+
+  // 🚀 IMPROVED: Manual retry function that respects cancellation
+  const handleRetry = () => {
+    // Cancel any existing request
+    if (currentRequestRef.current) {
+      currentRequestRef.current.cancelled = true
+    }
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current)
+      retryTimeoutRef.current = null
+    }
+
+    // Create new request
+    const requestTracker = { cancelled: false }
+    currentRequestRef.current = requestTracker
+    
+    setError(null)
+    
+    async function retryFetch() {
+      if (requestTracker.cancelled) return
+      
+      setIsLoading(true)
+      
+      try {
+        const response = await getTopItemsByQuantity(
+          selectedMedicines.length > 0 ? selectedMedicines : undefined
+        )
+
+        if (requestTracker.cancelled) return
+
+        if (response.success && response.data) {
+          setItems(response.data)
+        } else if (response.error) {
+          setError(response.error)
+        }
+      } catch (error) {
+        if (requestTracker.cancelled) return
+        setError(`Failed to fetch data: ${error instanceof Error ? error.message : "Unknown error"}`)
+      } finally {
+        if (!requestTracker.cancelled) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    retryFetch()
+  }
 
   // Get badge color based on status
   const getStatusBadge = (status: string) => {
@@ -78,7 +205,19 @@ export function TopItemsTable({ selectedMedicines }: TopItemsTableProps) {
 
   // Don't render anything on the server, only on the client
   if (!mounted) {
-    return null
+    return (
+      <Card className="h-full">
+        <CardHeader>
+          <CardTitle>Top 10 Items by Quantity</CardTitle>
+          <CardDescription>Items with highest stock levels</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center h-[400px]">
+            <div className="animate-pulse">Loading...</div>
+          </div>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
@@ -90,11 +229,22 @@ export function TopItemsTable({ selectedMedicines }: TopItemsTableProps) {
       <CardContent>
         {isLoading ? (
           <div className="flex items-center justify-center h-[400px]">
-            <p>Loading data...</p>
+            <div className="space-y-2 text-center">
+              <div className="animate-pulse">Loading data...</div>
+              <p className="text-sm text-muted-foreground">
+                🚀 Fast loading with optimized queries
+              </p>
+            </div>
           </div>
         ) : error ? (
-          <div className="flex items-center justify-center h-[400px] text-red-500">
-            <p>{error}</p>
+          <div className="flex flex-col items-center justify-center h-[400px] text-red-500 space-y-4">
+            <p className="text-center max-w-md">{error}</p>
+            <button 
+              onClick={handleRetry}
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+            >
+              Retry
+            </button>
           </div>
         ) : items.length > 0 ? (
           <div className="border rounded-md">

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
@@ -24,49 +24,205 @@ export function TopItemsChart({ selectedMedicines }: TopItemsChartProps) {
   const [error, setError] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
 
+  // 🚀 IMPROVED: Use ref to track current request and enable proper cancellation
+  const currentRequestRef = useRef<{ cancelled: boolean } | null>(null)
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
   // Fix hydration issues by only rendering after component is mounted
   useEffect(() => {
     setMounted(true)
   }, [])
 
-  // Fetch data when selectedMedicines changes or tab changes
+  // 🚀 IMPROVED: Better request cancellation when selectedMedicines changes
   useEffect(() => {
     if (!mounted) return
 
-    async function fetchData() {
+    // Cancel any existing request and timeout
+    if (currentRequestRef.current) {
+      currentRequestRef.current.cancelled = true
+    }
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current)
+      retryTimeoutRef.current = null
+    }
+
+    // Create new request tracker
+    const requestTracker = { cancelled: false }
+    currentRequestRef.current = requestTracker
+
+    async function fetchData(retryCount = 0) {
+      // Check if request was cancelled before starting
+      if (requestTracker.cancelled) return
+
       setIsLoading(true)
       setError(null)
+      
       try {
-        // Always fetch both datasets to avoid loading state when switching tabs
-        const receivedResponse = await getTopReceivedItems(selectedMedicines.length > 0 ? selectedMedicines : undefined)
+        // Add a small delay for initial load to let connections stabilize
+        if (retryCount === 0) {
+          await new Promise(resolve => setTimeout(resolve, 100))
+        }
 
-        const dispensedResponse = await getTopDispensedItems(
-          selectedMedicines.length > 0 ? selectedMedicines : undefined,
+        // Check if request was cancelled during delay
+        if (requestTracker.cancelled) return
+
+        // 🚀 IMPROVED: Fetch both datasets but check cancellation between calls
+        const receivedResponse = await getTopReceivedItems(
+          selectedMedicines.length > 0 ? selectedMedicines : undefined
         )
 
+        // Check if request was cancelled after first API call
+        if (requestTracker.cancelled) return
+
+        const dispensedResponse = await getTopDispensedItems(
+          selectedMedicines.length > 0 ? selectedMedicines : undefined
+        )
+
+        // 🚀 CRITICAL: Check if request was cancelled after both API calls
+        if (requestTracker.cancelled) return
+
+        // Process received data
         if (receivedResponse.success && receivedResponse.data) {
           setReceivedData(receivedResponse.data)
         } else if (receivedResponse.error) {
           console.error("Error in received data:", receivedResponse.error)
+          
+          // Check for connection errors and retry
+          if (receivedResponse.error.includes("Can't reach database server") && retryCount < 3) {
+            console.log(`Retrying chart connection... Attempt ${retryCount + 1}`)
+            
+            retryTimeoutRef.current = setTimeout(() => {
+              if (!requestTracker.cancelled) {
+                fetchData(retryCount + 1)
+              }
+            }, 1000 * (retryCount + 1)) // Exponential backoff
+            return
+          }
+          
+          setError(receivedResponse.error)
+        }
+
+        // Process dispensed data
+        if (dispensedResponse.success && dispensedResponse.data) {
+          setDispensedData(dispensedResponse.data)
+        } else if (dispensedResponse.error) {
+          console.error("Error in dispensed data:", dispensedResponse.error)
+          
+          // Check for connection errors and retry
+          if (dispensedResponse.error.includes("Can't reach database server") && retryCount < 3) {
+            console.log(`Retrying chart connection... Attempt ${retryCount + 1}`)
+            
+            retryTimeoutRef.current = setTimeout(() => {
+              if (!requestTracker.cancelled) {
+                fetchData(retryCount + 1)
+              }
+            }, 1000 * (retryCount + 1)) // Exponential backoff
+            return
+          }
+          
+          setError(dispensedResponse.error)
+        }
+
+      } catch (error) {
+        // Check if request was cancelled during error handling
+        if (requestTracker.cancelled) return
+        
+        console.error("Error fetching top items chart data:", error)
+        const errorMessage = error instanceof Error ? error.message : "Unknown error"
+        
+        // Check for connection errors and retry
+        if (errorMessage.includes("Can't reach database server") && retryCount < 3) {
+          console.log(`Retrying chart connection... Attempt ${retryCount + 1}`)
+          
+          retryTimeoutRef.current = setTimeout(() => {
+            if (!requestTracker.cancelled) {
+              fetchData(retryCount + 1)
+            }
+          }, 1000 * (retryCount + 1)) // Exponential backoff
+          return
+        }
+        
+        setError(`Failed to fetch chart data: ${errorMessage}`)
+      } finally {
+        // Only update loading state if request wasn't cancelled
+        if (!requestTracker.cancelled) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    fetchData()
+
+    // 🚀 IMPROVED: Cleanup function
+    return () => {
+      if (currentRequestRef.current) {
+        currentRequestRef.current.cancelled = true
+      }
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current)
+        retryTimeoutRef.current = null
+      }
+    }
+  }, [selectedMedicines, mounted])
+
+  // 🚀 IMPROVED: Manual retry function that respects cancellation
+  const handleRetry = () => {
+    // Cancel any existing request
+    if (currentRequestRef.current) {
+      currentRequestRef.current.cancelled = true
+    }
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current)
+      retryTimeoutRef.current = null
+    }
+
+    // Create new request
+    const requestTracker = { cancelled: false }
+    currentRequestRef.current = requestTracker
+    
+    setError(null)
+    
+    async function retryFetch() {
+      if (requestTracker.cancelled) return
+      
+      setIsLoading(true)
+      
+      try {
+        const receivedResponse = await getTopReceivedItems(
+          selectedMedicines.length > 0 ? selectedMedicines : undefined
+        )
+
+        if (requestTracker.cancelled) return
+
+        const dispensedResponse = await getTopDispensedItems(
+          selectedMedicines.length > 0 ? selectedMedicines : undefined
+        )
+
+        if (requestTracker.cancelled) return
+
+        if (receivedResponse.success && receivedResponse.data) {
+          setReceivedData(receivedResponse.data)
+        } else if (receivedResponse.error) {
           setError(receivedResponse.error)
         }
 
         if (dispensedResponse.success && dispensedResponse.data) {
           setDispensedData(dispensedResponse.data)
-        } else if (dispensedResponse.error) {
-          console.error("Error in dispensed data:", dispensedResponse.error)
+        } else if (dispensedResponse.error && !error) {
           setError(dispensedResponse.error)
         }
       } catch (error) {
-        console.error("Error fetching top items data:", error)
-        setError(`Failed to fetch data: ${error instanceof Error ? error.message : "Unknown error"}`)
+        if (requestTracker.cancelled) return
+        setError(`Failed to fetch chart data: ${error instanceof Error ? error.message : "Unknown error"}`)
       } finally {
-        setIsLoading(false)
+        if (!requestTracker.cancelled) {
+          setIsLoading(false)
+        }
       }
     }
 
-    fetchData()
-  }, [selectedMedicines, mounted])
+    retryFetch()
+  }
 
   // Custom tooltip for the chart
   const CustomTooltip = ({ 
@@ -101,7 +257,19 @@ export function TopItemsChart({ selectedMedicines }: TopItemsChartProps) {
 
   // Don't render anything on the server, only on the client
   if (!mounted) {
-    return null
+    return (
+      <Card className="h-full w-full flex flex-col">
+        <CardHeader className="pb-2">
+          <CardTitle>Top 10 Received & Dispensed Items</CardTitle>
+          <CardDescription>Items with highest receipt and dispensing quantities</CardDescription>
+        </CardHeader>
+        <CardContent className="flex-1 pt-0 overflow-hidden">
+          <div className="flex items-center justify-center h-[400px]">
+            <div className="animate-pulse">Loading...</div>
+          </div>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
@@ -119,11 +287,22 @@ export function TopItemsChart({ selectedMedicines }: TopItemsChartProps) {
           <TabsContent value="received" className="flex-1 mt-2 data-[state=active]:flex data-[state=active]:flex-col">
             {isLoading ? (
               <div className="flex items-center justify-center h-full">
-                <p>Loading chart data...</p>
+                <div className="space-y-2 text-center">
+                  <div className="animate-pulse">Loading chart data...</div>
+                  <p className="text-sm text-muted-foreground">
+                    🚀 Optimized charts with request cancellation
+                  </p>
+                </div>
               </div>
             ) : error ? (
-              <div className="flex items-center justify-center h-full text-red-500">
-                <p>{error}</p>
+              <div className="flex flex-col items-center justify-center h-full text-red-500 space-y-4">
+                <p className="text-center max-w-md">{error}</p>
+                <button 
+                  onClick={handleRetry}
+                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                >
+                  Retry
+                </button>
               </div>
             ) : receivedData.length > 0 ? (
               <div className="h-full min-h-96">
@@ -170,11 +349,22 @@ export function TopItemsChart({ selectedMedicines }: TopItemsChartProps) {
           <TabsContent value="dispensed" className="flex-1 mt-2 data-[state=active]:flex data-[state=active]:flex-col">
             {isLoading ? (
               <div className="flex items-center justify-center h-full">
-                <p>Loading chart data...</p>
+                <div className="space-y-2 text-center">
+                  <div className="animate-pulse">Loading chart data...</div>
+                  <p className="text-sm text-muted-foreground">
+                    🚀 Optimized charts with request cancellation
+                  </p>
+                </div>
               </div>
             ) : error ? (
-              <div className="flex items-center justify-center h-full text-red-500">
-                <p>{error}</p>
+              <div className="flex flex-col items-center justify-center h-full text-red-500 space-y-4">
+                <p className="text-center max-w-md">{error}</p>
+                <button 
+                  onClick={handleRetry}
+                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                >
+                  Retry
+                </button>
               </div>
             ) : dispensedData.length > 0 ? (
               <div className="h-full min-h-96">

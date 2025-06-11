@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
 import { getMedicinesApproachingExpiry } from "@/lib/actions/unit-stock-history"
 import { Button } from "@/components/ui/button"
-import { List, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react"
+import { List, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2 } from "lucide-react"
 
 interface UnitExpiryChartProps {
   unitId: number
@@ -20,18 +20,25 @@ interface ExpiryData {
   quantity: number
   unit: string
   daysRemaining: number
-  expiryDate: Date
+  expiryDate: Date | null // ✅ Updated to match backend (Date | null instead of Date)
   nusp: string  
+}
+
+interface ChartDataItem {
+  key: number
+  name: string
+  fullName: string
+  code: string
+  quantity: number
+  daysRemaining: number
+  unit: string
+  nusp: string
 }
 
 interface TooltipProps {
   active?: boolean
   payload?: Array<{
-    payload: {
-      fullName: string
-      nusp: string
-      unit: string
-    }
+    payload: ChartDataItem
     value: number
   }>
 }
@@ -49,35 +56,123 @@ export function UnitExpiryChart({ unitId, selectedMedicines }: UnitExpiryChartPr
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(10)
 
+  // 🚀 NEW: Request cancellation refs
+  const currentRequestRef = useRef<{ cancelled: boolean } | null>(null)
+  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
   // Fix hydration issues by only rendering after component is mounted
   useEffect(() => {
     setMounted(true)
   }, [])
 
+  // 🚀 OPTIMIZED: Fetch with request cancellation and retry logic
   useEffect(() => {
     if (!mounted) return
 
-    async function fetchData() {
+    async function fetchData(retryCount = 0) {
+      // Cancel any existing request
+      if (currentRequestRef.current) {
+        currentRequestRef.current.cancelled = true
+      }
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current)
+        retryTimeoutRef.current = null
+      }
+
+      // Create new request tracker
+      const requestTracker = { cancelled: false }
+      currentRequestRef.current = requestTracker
+
+      // Check if request was cancelled before starting
+      if (requestTracker.cancelled) return
+
       setIsLoading(true)
+      setError(null)
+      
       try {
+        console.log("📅 Fetching expiry data for unit:", unitId, "medicines:", selectedMedicines.length)
+        
         const response = await getMedicinesApproachingExpiry(
           unitId,
           selectedMedicines.length > 0 ? selectedMedicines : undefined,
         )
+        
+        // 🚀 CRITICAL: Check if request was cancelled after API call
+        if (requestTracker.cancelled) {
+          console.log("🚫 Expiry chart request cancelled")
+          return
+        }
+        
         if (response.success && response.data) {
-          setExpiryData(response.data)
+          // 🚀 FIXED: Transform data to handle potential type mismatches
+          const transformedData: ExpiryData[] = response.data.map(item => ({
+            ...item,
+            expiryDate: item.expiryDate, // Already Date | null from backend
+            daysRemaining: item.daysRemaining || 0, // Ensure number
+          }))
+          
+          setExpiryData(transformedData)
+          console.log("✅ Expiry data loaded:", transformedData.length, "medicines")
         } else {
+          console.error("❌ Expiry chart API error:", response.error)
+          
+          // Retry logic for network errors
+          if (response.error && (response.error.includes("network") || response.error.includes("fetch")) && retryCount < 2) {
+            console.log(`🔄 Retrying expiry chart fetch... Attempt ${retryCount + 1}`)
+            
+            retryTimeoutRef.current = setTimeout(() => {
+              if (!requestTracker.cancelled) {
+                fetchData(retryCount + 1)
+              }
+            }, 1000 * (retryCount + 1))
+            return
+          }
+          
           setError(response.error || "Failed to fetch expiry data")
         }
       } catch (error) {
-        console.error("Error fetching expiry data:", error)
+        // Check if request was cancelled during error handling
+        if (requestTracker.cancelled) {
+          console.log("🚫 Expiry chart request cancelled during error")
+          return
+        }
+        
+        console.error("❌ Error fetching expiry data:", error)
+        const errorMessage = error instanceof Error ? error.message : "Unknown error"
+        
+        // Retry for network errors
+        if ((errorMessage.includes("network") || errorMessage.includes("fetch")) && retryCount < 2) {
+          console.log(`🔄 Retrying expiry chart fetch... Attempt ${retryCount + 1}`)
+          
+          retryTimeoutRef.current = setTimeout(() => {
+            if (!requestTracker.cancelled) {
+              fetchData(retryCount + 1)
+            }
+          }, 1000 * (retryCount + 1))
+          return
+        }
+        
         setError("An error occurred while fetching expiry data")
       } finally {
-        setIsLoading(false)
+        // Only update loading state if request wasn't cancelled
+        if (!requestTracker.cancelled) {
+          setIsLoading(false)
+        }
       }
     }
 
     fetchData()
+
+    // 🚀 NEW: Cleanup function to cancel requests
+    return () => {
+      if (currentRequestRef.current) {
+        currentRequestRef.current.cancelled = true
+      }
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current)
+        retryTimeoutRef.current = null
+      }
+    }
   }, [unitId, selectedMedicines, mounted])
 
   // Reset pagination when data changes
@@ -88,9 +183,17 @@ export function UnitExpiryChart({ unitId, selectedMedicines }: UnitExpiryChartPr
   // Don't render anything on the server, only on the client
   if (!mounted) {
     return (
-      <div className="h-[400px] flex items-center justify-center">
-        <p className="text-muted-foreground">Loading chart...</p>
-      </div>
+      <Card className="h-full">
+        <CardHeader>
+          <CardTitle>Medicines Approaching Expiry</CardTitle>
+          <CardDescription>Loading...</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[400px] flex items-center justify-center">
+            <p className="text-muted-foreground">Initializing chart...</p>
+          </div>
+        </CardContent>
+      </Card>
     )
   }
 
@@ -104,7 +207,7 @@ export function UnitExpiryChart({ unitId, selectedMedicines }: UnitExpiryChartPr
   const currentItems = sortedData.slice(indexOfFirstItem, indexOfLastItem)
 
   // Format data for the chart
-  const chartData = currentItems.map((item) => {
+  const chartData: ChartDataItem[] = currentItems.map((item) => {
     // Truncate and format medicine name for better readability
     let formattedName = item.name
 
@@ -151,16 +254,19 @@ export function UnitExpiryChart({ unitId, selectedMedicines }: UnitExpiryChartPr
 
   const xAxisMaximum = getAxisMaximum(maxQuantity)
 
-  // Custom tooltip for the chart
+  // 🚀 IMPROVED: Custom tooltip with better error handling
   const CustomTooltip = ({ active, payload }: TooltipProps) => {
     if (active && payload && payload.length) {
       const item = payload[0].payload
       return (
-        <div className="bg-background p-2 border rounded-md shadow-sm">
-          <p className="font-medium">{item.fullName}</p>
-          <p className="text-sm">{`Code: ${item.nusp}`}</p>
-          <p className="text-sm">{`Quantity: ${payload[0].value} ${item.unit}`}</p>
-          <p className="text-sm">{`Days Remaining: ${payload[1].value}`}</p>
+        <div className="bg-background p-3 border rounded-md shadow-lg">
+          <p className="font-medium text-sm">{item.fullName}</p>
+          <p className="text-xs text-gray-600">{`Code: ${item.nusp}`}</p>
+          <p className="text-xs">{`Quantity: ${payload[0].value} ${item.unit}`}</p>
+          <p className="text-xs">{`Days Remaining: ${item.daysRemaining}`}</p>
+          {item.daysRemaining <= 30 && (
+            <p className="text-xs text-red-600 font-medium">⚠️ Expires Soon</p>
+          )}
         </div>
       )
     }
@@ -182,8 +288,16 @@ export function UnitExpiryChart({ unitId, selectedMedicines }: UnitExpiryChartPr
     <Card className="h-full unit-expiry-chart">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <div>
-          <CardTitle>Medicines Approaching Expiry</CardTitle>
-          <CardDescription>Medicines that will expire within 1 year</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            Medicines Approaching Expiry
+            {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+          </CardTitle>
+          <CardDescription>
+            Medicines that will expire within 1 year
+            {selectedMedicines.length > 0 && (
+              <span className="text-blue-600"> • Filtered by {selectedMedicines.length} selected medicines</span>
+            )}
+          </CardDescription>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -194,6 +308,7 @@ export function UnitExpiryChart({ unitId, selectedMedicines }: UnitExpiryChartPr
               // Reset to page 1 when toggling view
               setCurrentPage(1)
             }}
+            disabled={isLoading}
           >
             <List className="h-4 w-4 mr-1" />
             {expandedView ? "Paginated View" : "View All"}
@@ -202,19 +317,40 @@ export function UnitExpiryChart({ unitId, selectedMedicines }: UnitExpiryChartPr
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="flex items-center justify-center h-[300px]">
-            <p>Loading chart data...</p>
+          <div className="flex flex-col items-center justify-center h-[300px] space-y-3">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            <p className="text-sm text-gray-600">Loading expiry chart...</p>
+            <p className="text-xs text-gray-500">
+              🚀 Using optimized database queries
+            </p>
           </div>
         ) : error ? (
-          <div className="flex items-center justify-center h-[300px] text-red-500">
-            <p>{error}</p>
+          <div className="flex flex-col items-center justify-center h-[300px] space-y-3">
+            <div className="text-red-500 text-center">
+              <p className="font-medium">Failed to load expiry chart</p>
+              <p className="text-sm mt-1">{error}</p>
+            </div>
+            <Button 
+              variant="outline" 
+              onClick={() => window.location.reload()}
+              className="mt-2"
+            >
+              Retry
+            </Button>
           </div>
         ) : expiryData.length > 0 ? (
           <div className="flex flex-col gap-2">
-            <div className="text-sm text-muted-foreground">
-              {expandedView 
-                ? `Showing all ${sortedData.length} medicines` 
-                : `Showing ${indexOfFirstItem + 1}-${Math.min(indexOfLastItem, sortedData.length)} of ${sortedData.length} medicines`}
+            <div className="text-sm text-muted-foreground flex items-center justify-between">
+              <span>
+                {expandedView 
+                  ? `Showing all ${sortedData.length} medicines` 
+                  : `Showing ${indexOfFirstItem + 1}-${Math.min(indexOfLastItem, sortedData.length)} of ${sortedData.length} medicines`}
+              </span>
+              {sortedData.some(item => item.daysRemaining <= 30) && (
+                <span className="text-red-600 text-xs font-medium">
+                  ⚠️ {sortedData.filter(item => item.daysRemaining <= 30).length} expire within 30 days
+                </span>
+              )}
             </div>
             <div
               className={expandedView && chartData.length > 10 ? "overflow-y-auto pr-2" : ""}
@@ -249,8 +385,18 @@ export function UnitExpiryChart({ unitId, selectedMedicines }: UnitExpiryChartPr
                   />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend />
-                  <Bar dataKey="quantity" fill="#60a5fa" name="Quantity" />
-                  <Bar dataKey="daysRemaining" fill="#fbbf24" name="Days Remaining" />
+                  <Bar 
+                    dataKey="quantity" 
+                    fill="#60a5fa" 
+                    name="Quantity"
+                    radius={[0, 4, 4, 0]}
+                  />
+                  <Bar 
+                    dataKey="daysRemaining" 
+                    fill="#fbbf24" 
+                    name="Days Remaining"
+                    radius={[0, 4, 4, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -258,6 +404,9 @@ export function UnitExpiryChart({ unitId, selectedMedicines }: UnitExpiryChartPr
             {/* Pagination controls */}
             {!expandedView && totalPages > 1 && (
               <div className="flex items-center justify-between mt-4">
+                <div className="text-sm text-muted-foreground">
+                  Page {currentPage} of {totalPages}
+                </div>
                 <div className="flex items-center space-x-2">
                   <Button 
                     variant="outline" 
@@ -275,8 +424,8 @@ export function UnitExpiryChart({ unitId, selectedMedicines }: UnitExpiryChartPr
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <span className="text-sm">
-                    Page {currentPage} of {totalPages || 1}
+                  <span className="text-sm mx-2">
+                    {currentPage} / {totalPages}
                   </span>
                   <Button 
                     variant="outline" 
@@ -299,8 +448,23 @@ export function UnitExpiryChart({ unitId, selectedMedicines }: UnitExpiryChartPr
             )}
           </div>
         ) : (
-          <div className="flex items-center justify-center h-[300px]">
-            <p className="text-muted-foreground">No medicines approaching expiry</p>
+          <div className="flex flex-col items-center justify-center h-[300px] space-y-3">
+            <div className="bg-green-50 p-6 rounded-full">
+              <svg className="h-12 w-12 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div className="text-center">
+              <p className="font-medium text-gray-800">Great! No Medicines Expiring Soon</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                All medicines have sufficient shelf life (&gt;1 year)
+              </p>
+              {selectedMedicines.length > 0 && (
+                <p className="text-xs text-blue-600 mt-1">
+                  ✓ Based on {selectedMedicines.length} selected medicines
+                </p>
+              )}
+            </div>
           </div>
         )}
       </CardContent>
