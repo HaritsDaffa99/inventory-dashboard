@@ -2,8 +2,21 @@
 
 import type { ForecastResult, Unit, Medicine } from "@/lib/forecasting/types"
 
-// Use only localhost:8000 since that works for units/medicines
-const PYTHON_API_URLS = ["http://127.0.0.1:8000"]
+console.log("=== ENVIRONMENT DEBUG ===")
+console.log("process.env.PYTHON_API_URL:", process.env.PYTHON_API_URL)
+console.log("process.env.TEST_ENV_LOADING:", process.env.TEST_ENV_LOADING)
+console.log("typeof process.env.PYTHON_API_URL:", typeof process.env.PYTHON_API_URL)
+console.log("All environment variables starting with PYTHON:", 
+  Object.keys(process.env).filter(key => key.startsWith('PYTHON')))
+
+// ✅ ADD: New debug logs to check if .env change worked
+console.log("🔍 CURRENT .env VALUE:", process.env.PYTHON_API_URL)
+console.log("🔍 EXPECTED VALUE: http://127.0.0.1:9999")
+console.log("🔍 DO THEY MATCH?", process.env.PYTHON_API_URL === "http://127.0.0.1:9999")
+console.log("========================")
+
+// ✅ ADD: Change fallback to something obvious
+const PYTHON_API_URLS = [process.env.PYTHON_API_URL || "http://FALLBACK-WAS-USED:8000"]
 
 async function tryPythonAPI(endpoint: string, options: RequestInit = {}): Promise<Response | null> {
   for (const baseUrl of PYTHON_API_URLS) {

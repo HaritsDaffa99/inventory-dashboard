@@ -1,6 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
 
-const PYTHON_API_URL = "http://127.0.0.1:8000"
+
+
+// ✅ ADD: Change fallback to something obvious
+const PYTHON_API_URL = process.env.PYTHON_API_URL || "http://FALLBACK-WAS-USED:8000"
 
 export async function POST(request: NextRequest) {
   try {

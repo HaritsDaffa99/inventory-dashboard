@@ -1,6 +1,6 @@
 import { ProphetServiceRequest, ProphetServiceResponse, SeasonalPattern, TrendAnalysis, AnomalyResult } from '@/lib/forecasting/outbreak-types'
 
-const PROPHET_API_URL = process.env.PROPHET_API_URL || 'http://127.0.0.1:8000"'
+const PROPHET_API_URL = process.env.PYTHON_API_URL || 'http://127.0.0.1:8000'
 const API_BASE_URL = process.env.NEXTAUTH_URL || 'http://localhost:3000'
 
 // ✅ ADD: Type definitions for Prophet data structures
