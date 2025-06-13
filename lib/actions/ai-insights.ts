@@ -95,71 +95,112 @@ function cleanResponseText(text: string): string {
 function createDashboardPrompt(data: DashboardData): string {
   const { metrics, selectedMedicines, conditionData, topReceivedItems, topDispensedItems, topItemsByQuantity } = data;
   
-  let prompt = `You are a senior pharmaceutical inventory analyst providing data-driven insights for healthcare executives.
+  let prompt = `You are a senior pharmaceutical procurement analyst with 15+ years of experience in healthcare supply chain optimization. 
+
+  Analyze this procurement and inventory data to uncover hidden patterns, inefficiencies, and strategic opportunities. Go beyond surface-level observations to provide deep, actionable intelligence.
+
+  Your analysis should reveal:
   
-  Analyze the following medical inventory data across the entire facility. The user already has this dashboard, so don't just summarize visible data. Instead:
-  
-  1. Provide a precise executive summary (150-200 words) that highlights urgent issues and quantifies their impact
-  2. Identify 3-4 key observations, focusing on subtle patterns and critical issues with specific numbers and percentages
-  3. Deliver 2-3 concrete, actionable strategic recommendations for inventory optimization
-  4. Uncover 3 hidden trends by connecting data points across different metrics
-  
-  IMPORTANT FORMATTING INSTRUCTIONS:
-  - DO NOT use asterisks (*) or stars anywhere in your response
-  - DO NOT start any bullet points with asterisks
-  - ALWAYS format your bullet points with a descriptive title followed by a colon, like "Title: Description"
-  - For example: "High Expiry Rate: 3662 damaged or expired units represent over 10% of total inventory..."
-  - For recommendations, always start with an action verb like "Implement", "Enhance", "Conduct", etc.
-  - For trends, use descriptive phrases that highlight the relationship or insight
-  - Include specific numbers and percentages in your analysis
-  - Make insights substantive but concise (each point 2-4 sentences)
-  - Include actual quantities, values and metrics in your observations
-  
-  For strategic recommendations:
-  - Focus on specific inventory adjustments and process improvements based on the data
-  - Provide actionable next steps that leverage the existing dashboard capabilities
-  - Quantify potential benefits of implementing your recommendations
-  
-  When analyzing trends:
-  - Identify correlations between seemingly unrelated metrics with supporting numbers
-  - Connect consumption patterns with broader inventory management implications
-  - Quantify the financial or operational impact of identified trends
-  - Find seasonal or cyclical patterns in the data
-  
+  1. EXECUTIVE SUMMARY (200-250 words): Quantify the most critical procurement inefficiencies and their operational impact. Include specific ratios, turnover rates, and procurement patterns that executive leadership must address immediately.
+
+  2. PROCUREMENT INTELLIGENCE (4-5 insights): Uncover hidden procurement patterns by analyzing:
+     - Demand-supply imbalances with specific quantity gaps
+     - Procurement frequency vs consumption velocity ratios
+     - Stock accumulation patterns indicating over-ordering or under-utilization
+     - Expiry-to-receipt ratios revealing procurement timing issues
+     - Cross-category procurement efficiency variations
+
+  3. STRATEGIC PROCUREMENT ACTIONS (3-4 recommendations): Provide data-backed procurement strategies:
+     - Specific quantity adjustments for high-variance items
+     - Procurement cycle optimization based on consumption patterns
+     - Supplier consolidation opportunities based on volume analysis
+     - Just-in-time ordering implementation for specific categories
+
+  4. PREDICTIVE PROCUREMENT TRENDS (3-4 trends): Connect data points to predict:
+     - Future stockout risks based on current consumption vs receipt patterns
+     - Seasonal procurement adjustments needed based on dispensing trends
+     - Category-specific procurement optimization opportunities
+     - Cost-saving potential through procurement pattern changes
+
+  CRITICAL ANALYSIS REQUIREMENTS:
+  - Calculate and include procurement efficiency ratios (received vs dispensed, stock turnover rates)
+  - Identify procurement outliers with specific quantity deviations
+  - Quantify waste through expired items and correlate with procurement timing
+  - Reveal procurement gaps where high-demand items have insufficient stock levels
+  - Calculate optimal reorder points based on current consumption velocity
+  - Identify overstocked categories consuming unnecessary working capital
+
+  FORMATTING RULES:
+  - NO asterisks or stars anywhere
+  - Use descriptive titles with colons: "Procurement Pattern: Description with numbers"
+  - Include specific quantities, ratios, and percentages in every insight
+  - Each insight must contain at least 2-3 specific numerical findings
+  - Connect seemingly unrelated metrics to reveal procurement inefficiencies
+  - Quantify financial impact where possible (working capital, waste costs)
+
   ${selectedMedicines.length > 0 ? 
-    `Note: The user has filtered the data to focus on specific medicines (IDs: ${selectedMedicines.join(", ")}). Focus your analysis on these filtered items.` : 
-    "The analysis covers all inventory items across the facility."
+    `FOCUS AREA: Analysis filtered to medicines with IDs: ${selectedMedicines.join(", ")}. Deep-dive into procurement patterns for these specific items.` : 
+    "SCOPE: Complete facility-wide procurement analysis across all categories."
   }
-  
-  FORMAT YOUR RESPONSE WITH THESE EXACT HEADERS:
-  "EXECUTIVE SUMMARY:"
-  "KEY OBSERVATIONS:"
-  "STRATEGIC RECOMMENDATIONS:" 
-  "TREND ANALYSIS:"\n\n`;
-  
-  // Add metrics data
+
+  RESPONSE FORMAT:
+  "PROCUREMENT EXECUTIVE SUMMARY:"
+  "PROCUREMENT INTELLIGENCE:"
+  "STRATEGIC PROCUREMENT ACTIONS:"
+  "PREDICTIVE PROCUREMENT TRENDS:"\n\n`;
+
+  // Add metrics with procurement context
   if (metrics) {
-    prompt += `INVENTORY METRICS:\n${JSON.stringify(metrics, null, 2)}\n\n`;
+    prompt += `PROCUREMENT METRICS:
+- Total Inventory: ${metrics.totalInventory?.value || 0} units (${metrics.totalInventory?.change || 0}% change)
+- Total Receipts: ${metrics.totalReceipts?.value || 0} units (${metrics.totalReceipts?.change || 0}% change)
+- Total Dispensed: ${metrics.totalDispensed?.value || 0} units (${metrics.totalDispensed?.change || 0}% change)
+- Expired/Damaged: ${metrics.expiredMedicines?.value || 0} units (${metrics.expiredMedicines?.change || 0}% change)
+- Available Stock: ${metrics.availableItems?.value || 0} units
+- Damaged Units: ${metrics.damagedItems?.value || 0} units
+
+PROCUREMENT EFFICIENCY RATIOS TO ANALYZE:
+- Receipt-to-Dispensing Ratio: ${metrics.totalReceipts?.value || 0} / ${metrics.totalDispensed?.value || 1} = ${((metrics.totalReceipts?.value || 0) / (metrics.totalDispensed?.value || 1)).toFixed(2)}
+- Waste Ratio: ${metrics.expiredMedicines?.value || 0} / ${metrics.totalReceipts?.value || 1} = ${((metrics.expiredMedicines?.value || 0) / (metrics.totalReceipts?.value || 1) * 100).toFixed(2)}%
+- Stock Utilization: ${metrics.totalDispensed?.value || 0} / ${metrics.totalInventory?.value || 1} = ${((metrics.totalDispensed?.value || 0) / (metrics.totalInventory?.value || 1) * 100).toFixed(2)}%\n\n`;
   }
   
-  // Add condition data
+  // Add condition data with procurement implications
   if (conditionData && conditionData.length > 0) {
-    prompt += `CONDITION DISTRIBUTION:\n${JSON.stringify(conditionData, null, 2)}\n\n`;
+    prompt += `CONDITION-BASED PROCUREMENT PATTERNS:
+${conditionData.map(condition => 
+  `- ${condition.name}: ${condition.value} units (${condition.percentage.toFixed(1)}% of total stock)`
+).join('\n')}
+
+ANALYZE: Which conditions show procurement imbalances? Are high-prevalence conditions adequately stocked?\n\n`;
   }
   
-  // Add top received items
+  // Add procurement-focused item analysis
   if (topReceivedItems && topReceivedItems.length > 0) {
-    prompt += `TOP RECEIVED ITEMS:\n${JSON.stringify(topReceivedItems, null, 2)}\n\n`;
+    prompt += `TOP PROCUREMENT VOLUMES (Recently Received):
+${topReceivedItems.map(item => 
+  `- ${item.name} (${item.code || 'N/A'}): ${item.quantity || 0} ${item.unit || 'units'} received`
+).join('\n')}
+
+PROCUREMENT QUESTION: Are these high-volume receipts aligned with actual demand patterns?\n\n`;
   }
   
-  // Add top dispensed items
   if (topDispensedItems && topDispensedItems.length > 0) {
-    prompt += `TOP DISPENSED ITEMS:\n${JSON.stringify(topDispensedItems, null, 2)}\n\n`;
+    prompt += `HIGH-DEMAND ITEMS (Most Dispensed):
+${topDispensedItems.map(item => 
+  `- ${item.name} (${item.code || 'N/A'}): ${item.quantity || 0} ${item.unit || 'units'} dispensed`
+).join('\n')}
+
+PROCUREMENT INSIGHT: Compare with receipt volumes to identify demand-supply gaps.\n\n`;
   }
   
-  // Add top items by quantity
   if (topItemsByQuantity && topItemsByQuantity.length > 0) {
-    prompt += `TOP ITEMS BY QUANTITY:\n${JSON.stringify(topItemsByQuantity, null, 2)}\n\n`;
+    prompt += `HIGHEST STOCK LEVELS (Current Inventory):
+${topItemsByQuantity.map(item => 
+  `- ${item.name} (${item.code || 'N/A'}): ${item.stock || 0} ${item.unit || 'units'} in stock`
+).join('\n')}
+
+PROCUREMENT ANALYSIS: Identify overstocked items that may indicate procurement inefficiencies or changing demand patterns.\n\n`;
   }
   
   return prompt;
@@ -176,22 +217,22 @@ function processInsightsResponse(text: string): InsightsResponse {
   };
   
   // Extract sections using regex
-  const summaryMatch = text.match(/EXECUTIVE SUMMARY:([\s\S]*?)(?=KEY OBSERVATIONS:|$)/i);
+  const summaryMatch = text.match(/PROCUREMENT EXECUTIVE SUMMARY:([\s\S]*?)(?=PROCUREMENT INTELLIGENCE:|$)/i);
   if (summaryMatch && summaryMatch[1]) {
     result.summary = summaryMatch[1].trim();
   }
   
-  const keyPointsMatch = text.match(/KEY OBSERVATIONS:([\s\S]*?)(?=STRATEGIC RECOMMENDATIONS:|$)/i);
+  const keyPointsMatch = text.match(/PROCUREMENT INTELLIGENCE:([\s\S]*?)(?=STRATEGIC PROCUREMENT ACTIONS:|$)/i);
   if (keyPointsMatch && keyPointsMatch[1]) {
     result.keyPoints = extractBulletPoints(keyPointsMatch[1]);
   }
   
-  const recommendationsMatch = text.match(/STRATEGIC RECOMMENDATIONS:([\s\S]*?)(?=TREND ANALYSIS:|$)/i);
+  const recommendationsMatch = text.match(/STRATEGIC PROCUREMENT ACTIONS:([\s\S]*?)(?=PREDICTIVE PROCUREMENT TRENDS:|$)/i);
   if (recommendationsMatch && recommendationsMatch[1]) {
     result.recommendations = extractBulletPoints(recommendationsMatch[1]);
   }
   
-  const trendsMatch = text.match(/TREND ANALYSIS:([\s\S]*?)$/i);
+  const trendsMatch = text.match(/PREDICTIVE PROCUREMENT TRENDS:([\s\S]*?)$/i);
   if (trendsMatch && trendsMatch[1]) {
     result.trends = extractBulletPoints(trendsMatch[1]);
   }

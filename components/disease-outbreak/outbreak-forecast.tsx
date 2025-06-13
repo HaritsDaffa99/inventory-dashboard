@@ -5,10 +5,10 @@ import { generateOutbreakForecasts } from "@/lib/actions/outbreak-forecasting"
 import type { OutbreakForecast } from "@/lib/forecasting/outbreak-types"
 import ForecastControls from "./ForecastControls"
 import ForecastChart from "./ForecastChart"
-import EarlyWarningIndicators from "./EarlyWarningIndicators" // ✅ ADD: Import EarlyWarningIndicators
+import EarlyWarningIndicators from "./EarlyWarningIndicators"
 import { AlertTriangle, Activity } from "lucide-react"
 import { Card, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs" // ✅ ADD: Import Tabs
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
 
 export default function OutbreakForecast() {
@@ -20,13 +20,14 @@ export default function OutbreakForecast() {
     model_type: string
     generation_time: number
   }>({ model_type: 'threshold', generation_time: 0 })
-  const [selectedCategory, setSelectedCategory] = useState<string>('') // ✅ ADD: Selected category state
+  const [selectedCategory, setSelectedCategory] = useState<string>('')
 
-  // Check Prophet API availability
+  // ✅ FIXED: Check Prophet API availability using API route
   useEffect(() => {
     const checkProphetStatus = async () => {
       try {
-        const response = await fetch('http://localhost:8000/disease-outbreak/health')
+        // ✅ FIXED: Use API route instead of hardcoded URL
+        const response = await fetch('/api/disease-outbreak/health')
         if (response.ok) {
           setProphetStatus('available')
         } else {
@@ -69,7 +70,7 @@ export default function OutbreakForecast() {
         const filteredForecasts = forecastResult.data.filter(f => f.forecast_period === forecastPeriod)
         setForecasts(filteredForecasts)
         
-        // ✅ ADD: Set default selected category to first one with early warning data
+        // Set default selected category to first one with early warning data
         const categoryWithEarlyWarning = filteredForecasts.find(f => f.early_warning)
         if (categoryWithEarlyWarning && !selectedCategory) {
           setSelectedCategory(categoryWithEarlyWarning.category_id)
@@ -89,7 +90,7 @@ export default function OutbreakForecast() {
     }
   }
 
-  // ✅ ADD: Get available categories for dropdown
+  // Get available categories for dropdown
   const availableCategories = forecasts
     .filter(f => f.early_warning)
     .map(f => ({
@@ -140,7 +141,7 @@ export default function OutbreakForecast() {
         </div>
       )}
 
-      {/* ✅ NEW: Tabbed Interface for Results */}
+      {/* Tabbed Interface for Results */}
       {forecasts.length > 0 && (
         <Tabs defaultValue="charts" className="space-y-6">
           <TabsList className="grid w-full grid-cols-2">
@@ -158,7 +159,7 @@ export default function OutbreakForecast() {
           </TabsContent>
 
           <TabsContent value="early-warning" className="space-y-0">
-            {/* ✅ ADD: Category Selection for Early Warning */}
+            {/* Category Selection for Early Warning */}
             {availableCategories.length > 1 && (
               <Card className="mb-6">
                 <CardHeader className="pb-4">
@@ -182,7 +183,7 @@ export default function OutbreakForecast() {
               </Card>
             )}
 
-            {/* ✅ ADD: Early Warning Indicators Component */}
+            {/* Early Warning Indicators Component */}
             <EarlyWarningIndicators
               forecasts={forecasts}
               selectedCategory={selectedCategory || availableCategories[0]?.id}
@@ -191,7 +192,7 @@ export default function OutbreakForecast() {
         </Tabs>
       )}
 
-      {/* ✅ FALLBACK: Show charts only if no forecasts (original behavior) */}
+      {/* Fallback: Show charts only if no forecasts (original behavior) */}
       {forecasts.length === 0 && (
         <ForecastChart
           forecasts={forecasts}
