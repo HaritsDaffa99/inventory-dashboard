@@ -133,15 +133,28 @@ const mockGetMedicinesApproachingExpiry = getMedicinesApproachingExpiry as jest.
 const mockGetTopMedicinesInUnit = getTopMedicinesInUnit as jest.MockedFunction<typeof getTopMedicinesInUnit>;
 const mockGetLowStockWarnings = getLowStockWarnings as jest.MockedFunction<typeof getLowStockWarnings>;
 
-// Mock window.location with delete and redefine approach
-delete (window as any).location;
+// Mock window.location properly for JSDOM
 const mockLocation = {
   href: '',
   assign: jest.fn(),
   replace: jest.fn(),
   reload: jest.fn(),
+  search: '',
+  hash: '',
+  pathname: '/dashboard/unit/1',
+  origin: 'http://localhost',
+  protocol: 'http:',
+  host: 'localhost',
+  hostname: 'localhost',
+  port: '',
 };
-(window as any).location = mockLocation;
+
+// Use Object.defineProperty to properly mock window.location
+Object.defineProperty(window, 'location', {
+  value: mockLocation,
+  writable: true,
+  configurable: true,
+});
 
 describe('UnitDetailPage', () => {
   const mockUnit = {
@@ -220,7 +233,7 @@ describe('UnitDetailPage', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockLocation.href = '';
+    mockLocation.href = 'http://localhost/dashboard/unit/1';
     
     // Setup default mock responses
     mockGetUnits.mockResolvedValue({ success: true, data: mockUnits });
@@ -231,6 +244,11 @@ describe('UnitDetailPage', () => {
     mockGetMedicinesApproachingExpiry.mockResolvedValue({ success: true, data: mockExpiryData });
     mockGetTopMedicinesInUnit.mockResolvedValue({ success: true, data: mockTopMedicinesData });
     mockGetLowStockWarnings.mockResolvedValue({ success: true, data: mockLowStockData });
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+    jest.clearAllTimers();
   });
 
   describe('Component Rendering', () => {
@@ -420,6 +438,9 @@ describe('UnitDetailPage', () => {
     });
 
     it('handles unit selection change and updates component state', async () => {
+      // Mock console.error to suppress navigation warning
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      
       render(<UnitDetailPage unit={mockUnit} />);
 
       // First verify initial state
@@ -440,6 +461,8 @@ describe('UnitDetailPage', () => {
 
       // Verify the component handles the change without errors
       expect(selectButton).toBeInTheDocument();
+      
+      consoleErrorSpy.mockRestore();
     });
 
     it('renders select component correctly', async () => {

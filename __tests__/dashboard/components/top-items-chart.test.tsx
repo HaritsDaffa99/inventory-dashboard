@@ -294,7 +294,7 @@ describe('TopItemsChart', () => {
     render(<TopItemsChart selectedMedicines={[]} />);
 
     await waitFor(() => {
-      expect(screen.getAllByText('Failed to fetch data: Received API Error')).toHaveLength(1);
+      expect(screen.getAllByText('Failed to fetch chart data: Received API Error')).toHaveLength(1);
     });
   });
 
@@ -304,7 +304,7 @@ describe('TopItemsChart', () => {
     render(<TopItemsChart selectedMedicines={[]} />);
 
     await waitFor(() => {
-      expect(screen.getAllByText('Failed to fetch data: Dispensed API Error')).toHaveLength(1);
+      expect(screen.getAllByText('Failed to fetch chart data: Dispensed API Error')).toHaveLength(1);
     });
   });
 

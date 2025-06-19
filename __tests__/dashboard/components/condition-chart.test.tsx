@@ -98,11 +98,11 @@ describe('ConditionChart', () => {
 
     render(<ConditionChart selectedMedicines={[1, 2, 3]} />);
 
-    expect(screen.getByText('Loading chart data...')).toBeInTheDocument();
+    expect(screen.getByText('Loading condition data...')).toBeInTheDocument();
 
     // Wait for loading to complete
     await waitFor(() => {
-      expect(screen.queryByText('Loading chart data...')).not.toBeInTheDocument();
+      expect(screen.queryByText('Loading condition data...')).not.toBeInTheDocument();
     });
   });
 
@@ -152,7 +152,7 @@ describe('ConditionChart', () => {
     render(<ConditionChart selectedMedicines={[1, 2, 3]} />);
 
     await waitFor(() => {
-      expect(screen.getByText('No data available')).toBeInTheDocument();
+      expect(screen.getByText('Failed to fetch condition data: API Error')).toBeInTheDocument();
     });
 
     expect(consoleSpy).toHaveBeenCalledWith('Error fetching condition data:', expect.any(Error));
@@ -168,7 +168,7 @@ describe('ConditionChart', () => {
     render(<ConditionChart selectedMedicines={[1, 2, 3]} />);
 
     await waitFor(() => {
-      expect(screen.getByText('No data available')).toBeInTheDocument();
+      expect(screen.getByText('Failed to fetch data')).toBeInTheDocument();
     });
   });
 
@@ -205,7 +205,7 @@ describe('ConditionChart', () => {
     expect(screen.getByTestId('card')).toBeInTheDocument();
     
     // Initially shows loading state
-    expect(screen.getByText('Loading chart data...')).toBeInTheDocument();
+    expect(screen.getByText('Loading condition data...')).toBeInTheDocument();
 
     // Then shows data after loading
     await waitFor(() => {

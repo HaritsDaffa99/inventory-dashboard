@@ -33,6 +33,7 @@ jest.mock('@/lib/prisma', () => ({
     groupBy: jest.fn(),
   },
   rincianPengeluaran: {
+    findMany: jest.fn(),
     groupBy: jest.fn(),
   },
   unit: {
@@ -190,12 +191,6 @@ describe('Medicine Actions', () => {
 
   describe('getItemConditionDistribution', () => {
     it('successfully returns condition distribution', async () => {
-      const mockKondisiList = [
-        { kondisi: 'Good' },
-        { kondisi: 'Fair' },
-        { kondisi: 'Poor' },
-      ];
-
       const mockStockOpname = {
         _sum: {
           hilang: 5,
@@ -206,8 +201,6 @@ describe('Medicine Actions', () => {
         },
       };
 
-      (prisma.kondisi.findMany as jest.Mock).mockResolvedValue(mockKondisiList);
-      (prisma.rincianPenerimaan.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.stokOpname.aggregate as jest.Mock).mockResolvedValue(mockStockOpname);
 
       const result = await getItemConditionDistribution();
@@ -225,32 +218,28 @@ describe('Medicine Actions', () => {
     });
 
     it('filters by unitId when provided', async () => {
-      (prisma.kondisi.findMany as jest.Mock).mockResolvedValue([]);
-      (prisma.rincianPenerimaan.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.stokOpname.aggregate as jest.Mock).mockResolvedValue({ _sum: { jumlah: 100 } });
 
       await getItemConditionDistribution(1);
 
-      expect(prisma.rincianPenerimaan.findMany).toHaveBeenCalledWith({
+      expect(prisma.stokOpname.aggregate).toHaveBeenCalledWith({
         where: expect.objectContaining({
           unitId: 1,
         }),
-        include: expect.any(Object),
+        _sum: expect.any(Object),
       });
     });
 
     it('filters by persediaanIds when provided', async () => {
-      (prisma.kondisi.findMany as jest.Mock).mockResolvedValue([]);
-      (prisma.rincianPenerimaan.findMany as jest.Mock).mockResolvedValue([]);
       (prisma.stokOpname.aggregate as jest.Mock).mockResolvedValue({ _sum: { jumlah: 100 } });
 
       await getItemConditionDistribution(undefined, [1, 2, 3]);
 
-      expect(prisma.rincianPenerimaan.findMany).toHaveBeenCalledWith({
+      expect(prisma.stokOpname.aggregate).toHaveBeenCalledWith({
         where: expect.objectContaining({
           persediaanId: { in: [1, 2, 3] },
         }),
-        include: expect.any(Object),
+        _sum: expect.any(Object),
       });
     });
   });
@@ -374,112 +363,137 @@ describe('Medicine Actions', () => {
 
   describe('getTopReceivedItems', () => {
     it('successfully returns top received items', async () => {
-      const mockTopItems = [
-        { persediaanId: 1, _sum: { jumlah: 100 } },
-        { persediaanId: 2, _sum: { jumlah: 80 } },
+      const mockRincianPenerimaan = [
+        {
+          persediaanId: 1,
+          jumlah: 100,
+          persediaan: {
+            id: 1,
+            namaPersediaan: 'Medicine A',
+            kodePersediaan: 'MED001',
+            tipe: 'Tablet',
+          },
+        },
+        {
+          persediaanId: 1,
+          jumlah: 50,
+          persediaan: {
+            id: 1,
+            namaPersediaan: 'Medicine A',
+            kodePersediaan: 'MED001',
+            tipe: 'Tablet',
+          },
+        },
       ];
 
-      const mockPersediaan = {
-        namaPersediaan: 'Medicine A',
-        kodePersediaan: 'MED001',
-        tipe: 'Tablet',
-      };
-
-      (prisma.rincianPenerimaan.groupBy as jest.Mock).mockResolvedValue(mockTopItems);
-      (prisma.persediaan.findUnique as jest.Mock).mockResolvedValue(mockPersediaan);
+      (prisma.rincianPenerimaan.findMany as jest.Mock).mockResolvedValue(mockRincianPenerimaan);
 
       const result = await getTopReceivedItems();
 
       expect(result.success).toBe(true);
-      expect(result.data).toEqual(
-        expect.arrayContaining([
+      expect(result.data?.length).toBeGreaterThan(0);
+      if (result.data && result.data.length > 0) {
+        expect(result.data[0]).toEqual(
           expect.objectContaining({
             id: expect.any(Number),
             name: expect.any(String),
             value: expect.any(Number),
-          }),
-        ])
-      );
+          })
+        );
+      }
     });
 
     it('filters by selected medicines when provided', async () => {
-      (prisma.rincianPenerimaan.groupBy as jest.Mock).mockResolvedValue([]);
+      const mockRincianPenerimaan = [
+        {
+          persediaanId: 1,
+          jumlah: 100,
+          persediaan: {
+            id: 1,
+            namaPersediaan: 'Medicine A',
+            kodePersediaan: 'MED001',
+            tipe: 'Tablet',
+          },
+        },
+      ];
+
+      (prisma.rincianPenerimaan.findMany as jest.Mock).mockResolvedValue(mockRincianPenerimaan);
 
       await getTopReceivedItems([1, 2, 3]);
 
-      expect(prisma.rincianPenerimaan.groupBy).toHaveBeenCalledWith({
-        by: ['persediaanId'],
+      expect(prisma.rincianPenerimaan.findMany).toHaveBeenCalledWith({
         where: expect.objectContaining({
           persediaanId: { in: [1, 2, 3] },
         }),
-        _sum: { jumlah: true },
-        orderBy: { _sum: { jumlah: 'desc' } },
-        take: 10,
+        include: expect.any(Object),
+        orderBy: expect.any(Object),
       });
     });
   });
 
   describe('getTopDispensedItems', () => {
     it('successfully returns top dispensed items', async () => {
-      const mockTopItems = [
-        { persediaanId: 1, _sum: { banyak: 80 } },
-        { persediaanId: 2, _sum: { banyak: 60 } },
+      const mockRincianPengeluaran = [
+        {
+          persediaanId: 1,
+          banyak: 80,
+          persediaan: {
+            id: 1,
+            namaPersediaan: 'Medicine A',
+            kodePersediaan: 'MED001',
+            tipe: 'Tablet',
+          },
+        },
       ];
 
-      const mockPersediaan = {
-        namaPersediaan: 'Medicine A',
-        kodePersediaan: 'MED001',
-        tipe: 'Tablet',
-      };
-
-      (prisma.rincianPengeluaran.groupBy as jest.Mock).mockResolvedValue(mockTopItems);
-      (prisma.persediaan.findUnique as jest.Mock).mockResolvedValue(mockPersediaan);
+      (prisma.rincianPengeluaran.findMany as jest.Mock).mockResolvedValue(mockRincianPengeluaran);
 
       const result = await getTopDispensedItems();
 
       expect(result.success).toBe(true);
-      expect(result.data).toEqual(
-        expect.arrayContaining([
+      expect(result.data?.length).toBeGreaterThan(0);
+      if (result.data && result.data.length > 0) {
+        expect(result.data[0]).toEqual(
           expect.objectContaining({
             id: expect.any(Number),
             name: expect.any(String),
             value: expect.any(Number),
-          }),
-        ])
-      );
+          })
+        );
+      }
     });
   });
 
   describe('getTopItemsByQuantity', () => {
     it('successfully returns top items by quantity', async () => {
-      const mockTopItems = [
-        { persediaanId: 1, _sum: { jumlah: 500 } },
-        { persediaanId: 2, _sum: { jumlah: 300 } },
+      const mockStokOpname = [
+        {
+          persediaanId: 1,
+          jumlah: 500,
+          rusakRingan: 10,
+          rusakBerat: 5,
+          usang: 15,
+          hilang: 20,
+          persediaan: {
+            id: 1,
+            namaPersediaan: 'Medicine A',
+            kodePersediaan: 'MED001',
+            tipe: 'Tablet',
+          },
+          satuan: {
+            satuan: 'box',
+          },
+        },
       ];
 
-      const mockPersediaan = {
-        namaPersediaan: 'Medicine A',
-        kodePersediaan: 'MED001',
-      };
-
-      const mockStockOpname = {
-        satuan: { satuan: 'box' },
-        jumlah: 500,
-        rusakRingan: 10,
-        rusakBerat: 5,
-        usang: 15,
-        hilang: 20,
-      };
-
-      (prisma.stokOpname.groupBy as jest.Mock).mockResolvedValue(mockTopItems);
-      (prisma.persediaan.findUnique as jest.Mock).mockResolvedValue(mockPersediaan);
-      (prisma.stokOpname.findFirst as jest.Mock).mockResolvedValue(mockStockOpname);
+      (prisma.stokOpname.findMany as jest.Mock).mockResolvedValue(mockStokOpname);
 
       const result = await getTopItemsByQuantity();
 
       expect(result.success).toBe(true);
-      expect(result.data).toEqual(
-        expect.arrayContaining([
+      expect(result.data?.length).toBeGreaterThan(0);
+      if (result.data && result.data.length > 0) {
+        expect(result.data[0]).toEqual(
           expect.objectContaining({
             id: expect.any(Number),
             name: expect.any(String),
@@ -487,67 +501,77 @@ describe('Medicine Actions', () => {
             quantity: expect.any(Number),
             unit: expect.any(String),
             status: expect.any(String),
-          }),
-        ])
-      );
+          })
+        );
+      }
     });
   });
 
   describe('getTopReceiptLocations', () => {
     it('successfully returns top receipt locations', async () => {
-      const mockTopUnits = [
-        { unitId: 1, _count: { id: 50 } },
-        { unitId: 2, _count: { id: 30 } },
+      const mockPenerimaan = [
+        {
+          unitId: 1,
+          unit: { id: 1, namaUnit: 'Emergency Department' },
+        },
+        {
+          unitId: 1,
+          unit: { id: 1, namaUnit: 'Emergency Department' },
+        },
+        {
+          unitId: 2,
+          unit: { id: 2, namaUnit: 'ICU' },
+        },
       ];
 
-      const mockUnit = { namaUnit: 'Emergency Department' };
-
-      (prisma.penerimaan.groupBy as jest.Mock).mockResolvedValue(mockTopUnits);
-      (prisma.penerimaan.count as jest.Mock).mockResolvedValue(100);
-      (prisma.unit.findUnique as jest.Mock).mockResolvedValue(mockUnit);
+      (prisma.penerimaan.findMany as jest.Mock).mockResolvedValue(mockPenerimaan);
 
       const result = await getTopReceiptLocations();
 
       expect(result.success).toBe(true);
-      expect(result.data).toEqual(
-        expect.arrayContaining([
+      expect(result.data?.length).toBeGreaterThan(0);
+      if (result.data && result.data.length > 0) {
+        expect(result.data[0]).toEqual(
           expect.objectContaining({
             id: expect.any(Number),
             name: expect.any(String),
             count: expect.any(Number),
             percentage: expect.any(String),
-          }),
-        ])
-      );
+          })
+        );
+      }
     });
   });
 
   describe('getTopDispensedLocations', () => {
     it('successfully returns top dispensed locations', async () => {
-      const mockTopUnits = [
-        { unitId: 1, _count: { id: 40 } },
-        { unitId: 2, _count: { id: 25 } },
+      const mockPengeluaran = [
+        {
+          unitId: 1,
+          unit: { id: 1, namaUnit: 'Outpatient Pharmacy' },
+        },
+        {
+          unitId: 2,
+          unit: { id: 2, namaUnit: 'Inpatient Pharmacy' },
+        },
       ];
 
-      const mockUnit = { namaUnit: 'Outpatient Pharmacy' };
-
-      (prisma.pengeluaran.groupBy as jest.Mock).mockResolvedValue(mockTopUnits);
-      (prisma.pengeluaran.count as jest.Mock).mockResolvedValue(80);
-      (prisma.unit.findUnique as jest.Mock).mockResolvedValue(mockUnit);
+      (prisma.pengeluaran.findMany as jest.Mock).mockResolvedValue(mockPengeluaran);
 
       const result = await getTopDispensedLocations();
 
       expect(result.success).toBe(true);
-      expect(result.data).toEqual(
-        expect.arrayContaining([
+      expect(result.data?.length).toBeGreaterThan(0);
+      if (result.data && result.data.length > 0) {
+        expect(result.data[0]).toEqual(
           expect.objectContaining({
             id: expect.any(Number),
             name: expect.any(String),
             count: expect.any(Number),
             percentage: expect.any(String),
-          }),
-        ])
-      );
+          })
+        );
+      }
     });
   });
 
@@ -575,7 +599,7 @@ describe('Medicine Actions', () => {
     });
 
     it('handles empty query results', async () => {
-      (prisma.rincianPenerimaan.groupBy as jest.Mock).mockResolvedValue([]);
+      (prisma.rincianPenerimaan.findMany as jest.Mock).mockResolvedValue([]);
 
       const result = await getTopReceivedItems();
 

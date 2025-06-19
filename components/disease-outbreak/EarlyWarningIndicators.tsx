@@ -5,10 +5,25 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { AlertTriangle, TrendingUp, Clock, Activity, CheckCircle, AlertCircle, XCircle } from "lucide-react"
 import { OutbreakForecast } from "@/lib/forecasting/outbreak-types"
+import { OutbreakStockInsights } from "./OutbreakStockInsights"
 
 interface EarlyWarningIndicatorsProps {
   forecasts: OutbreakForecast[]
   selectedCategory?: string
+  stockData?: {
+    medicines: Array<{
+      id: number
+      name: string
+      currentQuantity: number
+      weeklyConsumption: number
+      daysRemaining: number
+      category: string
+      unitName?: string
+      expiryDate?: string
+    }>
+    totalUnits: number
+    totalValue?: number
+  }
 }
 
 interface VelocityGaugeProps {
@@ -487,7 +502,8 @@ function calculateDynamicEarlyWarning(forecast: OutbreakForecast) {
 // 🎯 Main Early Warning Indicators Component
 export default function EarlyWarningIndicators({ 
   forecasts, 
-  selectedCategory 
+  selectedCategory,
+  stockData
 }: EarlyWarningIndicatorsProps) {
   // Find the selected category or use the first one with data
   const targetForecast = selectedCategory 
@@ -519,6 +535,17 @@ export default function EarlyWarningIndicators({
   const categoryName = targetForecast.category_name.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase())
 
   console.log('🎯 Early Warning Data:', earlyWarning)
+
+  // Transform forecast data for stock insights
+  const outbreakForecastData = {
+    severity: earlyWarning.overall_alert_level,
+    timeline: targetForecast.prophet_forecast?.forecast_months?.[0]?.month || 'Current',
+    diseaseCategory: categoryName,
+    affectedPopulation: undefined, // Could be calculated from forecast data
+    outbreakVelocity: earlyWarning.velocity_analysis.velocity_per_week,
+    doublingTime: earlyWarning.doubling_analysis.doubling_time_days?.toString() || 'N/A',
+    epidemicCurve: earlyWarning.epidemic_curve.curve_shape
+  }
 
   return (
     <div className="space-y-6">
@@ -574,6 +601,15 @@ export default function EarlyWarningIndicators({
           peakPrediction={earlyWarning.epidemic_curve.peak_prediction}
         />
       </div>
+
+      {/* Stock Preparedness Analysis - NEW SECTION */}
+      {stockData && (
+        <OutbreakStockInsights
+          outbreakForecast={outbreakForecastData}
+          stockData={stockData}
+          diseaseCategory={categoryName}
+        />
+      )}
 
       {/* Warning Messages & Actions */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

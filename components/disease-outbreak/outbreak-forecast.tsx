@@ -11,7 +11,29 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
 
-export default function OutbreakForecast() {
+interface StockMedicine {
+  id: number
+  name: string
+  currentQuantity: number
+  weeklyConsumption: number
+  daysRemaining: number
+  category: string
+  unitName?: string
+  expiryDate?: string
+}
+
+interface StockData {
+  medicines: StockMedicine[]
+  totalUnits: number
+  totalValue?: number
+}
+
+interface OutbreakForecastProps {
+  stockData?: StockData | null
+  stockError?: string | null
+}
+
+export default function OutbreakForecast({ stockData, stockError }: OutbreakForecastProps) {
   const [forecasts, setForecasts] = useState<OutbreakForecast[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -124,6 +146,22 @@ export default function OutbreakForecast() {
         </CardHeader>
       </Card>
 
+      {/* Stock Data Status */}
+      {stockError && (
+        <Card className="bg-orange-50 border-orange-200">
+          <CardHeader className="pb-3">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-orange-600 mt-0.5" />
+              <div className="text-sm text-orange-800">
+                <strong>Stock Data Warning:</strong> {stockError}
+                <br />
+                <span className="text-xs">Stock preparedness analysis will be limited without current inventory data.</span>
+              </div>
+            </div>
+          </CardHeader>
+        </Card>
+      )}
+
       {/* Controls */}
       <ForecastControls
         onGenerate={handleGenerate}
@@ -183,10 +221,11 @@ export default function OutbreakForecast() {
               </Card>
             )}
 
-            {/* Early Warning Indicators Component */}
+            {/* Early Warning Indicators Component with Stock Data */}
             <EarlyWarningIndicators
               forecasts={forecasts}
               selectedCategory={selectedCategory || availableCategories[0]?.id}
+              stockData={stockData || undefined}
             />
           </TabsContent>
         </Tabs>

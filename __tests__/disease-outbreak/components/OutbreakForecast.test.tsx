@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import OutbreakForecast from '@/components/disease-outbreak/outbreak-forecast';
 import { generateOutbreakForecasts } from '@/lib/actions/outbreak-forecasting';
@@ -244,10 +244,12 @@ describe('OutbreakForecast', () => {
 
   describe('Prophet Status Management', () => {
     it('checks Prophet API health on mount', async () => {
-      render(<OutbreakForecast />);
+      await act(async () => {
+        render(<OutbreakForecast />);
+      });
 
       await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('http://localhost:8000/disease-outbreak/health');
+        expect(mockFetch).toHaveBeenCalledWith('/api/disease-outbreak/health');
       });
 
       await waitFor(() => {
@@ -258,7 +260,9 @@ describe('OutbreakForecast', () => {
     it('sets Prophet status to unavailable when health check fails', async () => {
       mockFetch.mockRejectedValue(new Error('Network error'));
 
-      render(<OutbreakForecast />);
+      await act(async () => {
+        render(<OutbreakForecast />);
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('prophet-status')).toHaveTextContent('unavailable');
@@ -271,7 +275,9 @@ describe('OutbreakForecast', () => {
         status: 500
       } as Response);
 
-      render(<OutbreakForecast />);
+      await act(async () => {
+        render(<OutbreakForecast />);
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('prophet-status')).toHaveTextContent('unavailable');
@@ -288,10 +294,16 @@ describe('OutbreakForecast', () => {
   describe('Forecast Generation', () => {
     it('handles successful forecast generation', async () => {
       const user = userEvent.setup();
-      render(<OutbreakForecast />);
+      
+      await act(async () => {
+        render(<OutbreakForecast />);
+      });
 
       const generateButton = screen.getByTestId('generate-button');
-      await user.click(generateButton);
+      
+      await act(async () => {
+        await user.click(generateButton);
+      });
 
       await waitFor(() => {
         expect(mockGenerateOutbreakForecasts).toHaveBeenCalledWith([1, 2, 3], {
@@ -320,10 +332,15 @@ describe('OutbreakForecast', () => {
       });
       mockGenerateOutbreakForecasts.mockReturnValue(hangingPromise);
 
-      render(<OutbreakForecast />);
+      await act(async () => {
+        render(<OutbreakForecast />);
+      });
 
       const generateButton = screen.getByTestId('generate-button');
-      await user.click(generateButton);
+      
+      await act(async () => {
+        await user.click(generateButton);
+      });
 
       // Should show loading state
       await waitFor(() => {
@@ -332,9 +349,11 @@ describe('OutbreakForecast', () => {
       });
 
       // Resolve the promise
-      resolvePromise!({
-        success: true,
-        data: mockForecastData
+      await act(async () => {
+        resolvePromise!({
+          success: true,
+          data: mockForecastData
+        });
       });
 
       await waitFor(() => {
@@ -350,10 +369,15 @@ describe('OutbreakForecast', () => {
         error: 'Analysis failed'
       });
 
-      render(<OutbreakForecast />);
+      await act(async () => {
+        render(<OutbreakForecast />);
+      });
 
       const generateButton = screen.getByTestId('generate-button');
-      await user.click(generateButton);
+      
+      await act(async () => {
+        await user.click(generateButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText('Error: Analysis failed')).toBeInTheDocument();
@@ -368,10 +392,15 @@ describe('OutbreakForecast', () => {
       
       mockGenerateOutbreakForecasts.mockRejectedValue(new Error('Network error'));
 
-      render(<OutbreakForecast />);
+      await act(async () => {
+        render(<OutbreakForecast />);
+      });
 
       const generateButton = screen.getByTestId('generate-button');
-      await user.click(generateButton);
+      
+      await act(async () => {
+        await user.click(generateButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText('Error: Failed to analyze disease patterns')).toBeInTheDocument();
@@ -391,10 +420,15 @@ describe('OutbreakForecast', () => {
         data: mixedPeriodData
       });
 
-      render(<OutbreakForecast />);
+      await act(async () => {
+        render(<OutbreakForecast />);
+      });
 
       const generateButton = screen.getByTestId('generate-button');
-      await user.click(generateButton);
+      
+      await act(async () => {
+        await user.click(generateButton);
+      });
 
       await waitFor(() => {
         // Should only show 6_MONTHS forecast (1 item)
@@ -404,10 +438,16 @@ describe('OutbreakForecast', () => {
 
     it('sets model performance metrics correctly', async () => {
       const user = userEvent.setup();
-      render(<OutbreakForecast />);
+      
+      await act(async () => {
+        render(<OutbreakForecast />);
+      });
 
       const generateButton = screen.getByTestId('generate-button');
-      await user.click(generateButton);
+      
+      await act(async () => {
+        await user.click(generateButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('chart-model-type')).toHaveTextContent('AI Analysis');
@@ -418,10 +458,15 @@ describe('OutbreakForecast', () => {
     it('uses statistical analysis when Prophet is disabled', async () => {
       const user = userEvent.setup();
       
-      render(<OutbreakForecast />);
+      await act(async () => {
+        render(<OutbreakForecast />);
+      });
 
       const generateButton = screen.getByTestId('generate-button');
-      await user.click(generateButton);
+      
+      await act(async () => {
+        await user.click(generateButton);
+      });
 
       // Test verifies the component's actual behavior - it's calling with use_prophet: true
       await waitFor(() => {
@@ -441,10 +486,16 @@ describe('OutbreakForecast', () => {
   describe('Tabbed Interface', () => {
     it('shows tabs when forecasts are available', async () => {
       const user = userEvent.setup();
-      render(<OutbreakForecast />);
+      
+      await act(async () => {
+        render(<OutbreakForecast />);
+      });
 
       const generateButton = screen.getByTestId('generate-button');
-      await user.click(generateButton);
+      
+      await act(async () => {
+        await user.click(generateButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('tabs')).toBeInTheDocument();
@@ -455,10 +506,16 @@ describe('OutbreakForecast', () => {
 
     it('defaults to charts tab', async () => {
       const user = userEvent.setup();
-      render(<OutbreakForecast />);
+      
+      await act(async () => {
+        render(<OutbreakForecast />);
+      });
 
       const generateButton = screen.getByTestId('generate-button');
-      await user.click(generateButton);
+      
+      await act(async () => {
+        await user.click(generateButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('tabs')).toHaveAttribute('data-default-value', 'charts');
@@ -467,10 +524,16 @@ describe('OutbreakForecast', () => {
 
     it('shows both tab contents', async () => {
       const user = userEvent.setup();
-      render(<OutbreakForecast />);
+      
+      await act(async () => {
+        render(<OutbreakForecast />);
+      });
 
       const generateButton = screen.getByTestId('generate-button');
-      await user.click(generateButton);
+      
+      await act(async () => {
+        await user.click(generateButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('tab-content-charts')).toBeInTheDocument();
@@ -488,10 +551,16 @@ describe('OutbreakForecast', () => {
   describe('Early Warning Indicators', () => {
     it('passes forecasts to early warning component', async () => {
       const user = userEvent.setup();
-      render(<OutbreakForecast />);
+      
+      await act(async () => {
+        render(<OutbreakForecast />);
+      });
 
       const generateButton = screen.getByTestId('generate-button');
-      await user.click(generateButton);
+      
+      await act(async () => {
+        await user.click(generateButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('early-warning-indicators')).toBeInTheDocument();
@@ -501,10 +570,16 @@ describe('OutbreakForecast', () => {
 
     it('sets default selected category to first with early warning data', async () => {
       const user = userEvent.setup();
-      render(<OutbreakForecast />);
+      
+      await act(async () => {
+        render(<OutbreakForecast />);
+      });
 
       const generateButton = screen.getByTestId('generate-button');
-      await user.click(generateButton);
+      
+      await act(async () => {
+        await user.click(generateButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('warning-selected-category')).toHaveTextContent('RESPIRATORY_INFECTIONS');
@@ -513,10 +588,16 @@ describe('OutbreakForecast', () => {
 
     it('shows category selection when multiple categories have early warning data', async () => {
       const user = userEvent.setup();
-      render(<OutbreakForecast />);
+      
+      await act(async () => {
+        render(<OutbreakForecast />);
+      });
 
       const generateButton = screen.getByTestId('generate-button');
-      await user.click(generateButton);
+      
+      await act(async () => {
+        await user.click(generateButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText('Select Category for Early Warning Analysis')).toBeInTheDocument();
@@ -527,17 +608,26 @@ describe('OutbreakForecast', () => {
 
     it('allows category selection for early warning', async () => {
       const user = userEvent.setup();
-      render(<OutbreakForecast />);
+      
+      await act(async () => {
+        render(<OutbreakForecast />);
+      });
 
       const generateButton = screen.getByTestId('generate-button');
-      await user.click(generateButton);
+      
+      await act(async () => {
+        await user.click(generateButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText('Gastrointestinal Diseases')).toBeInTheDocument();
       });
 
       const gastrointestinalButton = screen.getByText('Gastrointestinal Diseases');
-      await user.click(gastrointestinalButton);
+      
+      await act(async () => {
+        await user.click(gastrointestinalButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('warning-selected-category')).toHaveTextContent('GASTROINTESTINAL');
@@ -553,10 +643,15 @@ describe('OutbreakForecast', () => {
         data: singleCategoryData
       });
 
-      render(<OutbreakForecast />);
+      await act(async () => {
+        render(<OutbreakForecast />);
+      });
 
       const generateButton = screen.getByTestId('generate-button');
-      await user.click(generateButton);
+      
+      await act(async () => {
+        await user.click(generateButton);
+      });
 
       await waitFor(() => {
         expect(screen.queryByText('Select Category for Early Warning Analysis')).not.toBeInTheDocument();
@@ -576,10 +671,15 @@ describe('OutbreakForecast', () => {
         data: noEarlyWarningData
       });
 
-      render(<OutbreakForecast />);
+      await act(async () => {
+        render(<OutbreakForecast />);
+      });
 
       const generateButton = screen.getByTestId('generate-button');
-      await user.click(generateButton);
+      
+      await act(async () => {
+        await user.click(generateButton);
+      });
 
       await waitFor(() => {
         expect(screen.queryByText('Select Category for Early Warning Analysis')).not.toBeInTheDocument();
@@ -591,10 +691,16 @@ describe('OutbreakForecast', () => {
   describe('Forecast Period Mapping', () => {
     it('maps forecast months correctly', async () => {
       const user = userEvent.setup();
-      render(<OutbreakForecast />);
+      
+      await act(async () => {
+        render(<OutbreakForecast />);
+      });
 
       const generateButton = screen.getByTestId('generate-button');
-      await user.click(generateButton);
+      
+      await act(async () => {
+        await user.click(generateButton);
+      });
 
       await waitFor(() => {
         expect(mockGenerateOutbreakForecasts).toHaveBeenCalledWith([1, 2, 3], 
@@ -607,10 +713,16 @@ describe('OutbreakForecast', () => {
 
     it('verifies forecast period parameter mapping', async () => {
       const user = userEvent.setup();
-      render(<OutbreakForecast />);
+      
+      await act(async () => {
+        render(<OutbreakForecast />);
+      });
 
       const generateButton = screen.getByTestId('generate-button');
-      await user.click(generateButton);
+      
+      await act(async () => {
+        await user.click(generateButton);
+      });
 
       await waitFor(() => {
         const [unitIds, parameters] = mockGenerateOutbreakForecasts.mock.calls[0];
@@ -632,10 +744,15 @@ describe('OutbreakForecast', () => {
         error: 'Initial error'
       });
 
-      render(<OutbreakForecast />);
+      await act(async () => {
+        render(<OutbreakForecast />);
+      });
 
       const generateButton = screen.getByTestId('generate-button');
-      await user.click(generateButton);
+      
+      await act(async () => {
+        await user.click(generateButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText('Error: Initial error')).toBeInTheDocument();
@@ -647,7 +764,9 @@ describe('OutbreakForecast', () => {
         data: mockForecastData
       });
 
-      await user.click(generateButton);
+      await act(async () => {
+        await user.click(generateButton);
+      });
 
       await waitFor(() => {
         expect(screen.queryByText('Error: Initial error')).not.toBeInTheDocument();
@@ -669,10 +788,15 @@ describe('OutbreakForecast', () => {
         )
       );
 
-      render(<OutbreakForecast />);
+      await act(async () => {
+        render(<OutbreakForecast />);
+      });
 
       const generateButton = screen.getByTestId('generate-button');
-      await user.click(generateButton);
+      
+      await act(async () => {
+        await user.click(generateButton);
+      });
 
       await waitFor(() => {
         const generationTime = screen.getByTestId('chart-generation-time').textContent;
@@ -684,10 +808,16 @@ describe('OutbreakForecast', () => {
   describe('Category Name Formatting', () => {
     it('formats category names correctly for display', async () => {
       const user = userEvent.setup();
-      render(<OutbreakForecast />);
+      
+      await act(async () => {
+        render(<OutbreakForecast />);
+      });
 
       const generateButton = screen.getByTestId('generate-button');
-      await user.click(generateButton);
+      
+      await act(async () => {
+        await user.click(generateButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByText('Respiratory Infections')).toBeInTheDocument();
@@ -699,10 +829,16 @@ describe('OutbreakForecast', () => {
   describe('Model Type Detection', () => {
     it('correctly identifies AI analysis when Prophet is used', async () => {
       const user = userEvent.setup();
-      render(<OutbreakForecast />);
+      
+      await act(async () => {
+        render(<OutbreakForecast />);
+      });
 
       const generateButton = screen.getByTestId('generate-button');
-      await user.click(generateButton);
+      
+      await act(async () => {
+        await user.click(generateButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('chart-model-type')).toHaveTextContent('AI Analysis');
@@ -723,10 +859,15 @@ describe('OutbreakForecast', () => {
         data: thresholdData
       });
 
-      render(<OutbreakForecast />);
+      await act(async () => {
+        render(<OutbreakForecast />);
+      });
 
       const generateButton = screen.getByTestId('generate-button');
-      await user.click(generateButton);
+      
+      await act(async () => {
+        await user.click(generateButton);
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('chart-model-type')).toHaveTextContent('AI Analysis'); // Default when useProphet=true
